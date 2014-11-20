@@ -47,8 +47,6 @@
 
 use dom::bindings::utils::{Reflector, Reflectable};
 use dom::node::Node;
-use dom::xmlhttprequest::{XMLHttpRequest, TrustedXHRAddress};
-use dom::worker::{Worker, TrustedWorkerAddress};
 use js::jsapi::JSObject;
 use layout_interface::TrustedNodeAddress;
 use script_task::StackRoots;
@@ -136,24 +134,6 @@ impl JS<Node> {
         let TrustedNodeAddress(addr) = inner;
         JS {
             ptr: addr as *const Node
-        }
-    }
-}
-
-impl JS<XMLHttpRequest> {
-    pub unsafe fn from_trusted_xhr_address(inner: TrustedXHRAddress) -> JS<XMLHttpRequest> {
-        let TrustedXHRAddress(addr) = inner;
-        JS {
-            ptr: addr as *const XMLHttpRequest
-        }
-    }
-}
-
-impl JS<Worker> {
-    pub unsafe fn from_trusted_worker_address(inner: TrustedWorkerAddress) -> JS<Worker> {
-        let TrustedWorkerAddress(addr) = inner;
-        JS {
-            ptr: addr as *const Worker
         }
     }
 }

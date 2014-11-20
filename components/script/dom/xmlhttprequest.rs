@@ -15,6 +15,7 @@ use dom::bindings::error::{Error, ErrorResult, Fallible, InvalidState, InvalidAc
 use dom::bindings::error::{Network, Syntax, Security, Abort, Timeout};
 use dom::bindings::global::{GlobalField, GlobalRef, WorkerRoot};
 use dom::bindings::js::{MutNullableJS, JS, JSRef, Temporary, OptionalRootedRootable};
+use dom::bindings::refcounted::Trusted;
 use dom::bindings::str::ByteString;
 use dom::bindings::utils::{Reflectable, Reflector, reflect_dom_object};
 use dom::document::Document;
@@ -37,16 +38,13 @@ use http::headers::request::Header;
 use http::method::{Method, Get, Head, Connect, Trace, ExtensionMethod};
 use http::status::Status;
 
-use js::jsapi::{JS_AddObjectRoot, JS_ParseJSON, JS_RemoveObjectRoot, JSContext};
+use js::jsapi::{JS_ParseJSON, JSContext};
 use js::jsapi::JS_ClearPendingException;
 use js::jsval::{JSVal, NullValue, UndefinedValue};
 
-use libc;
-use libc::c_void;
-
 use net::resource_task::{ResourceTask, ResourceCORSData, Load, LoadData, Payload, Done};
 use cors::{allow_cross_origin_request, CORSRequest, CORSMode, ForcedPreflightMode};
-use script_task::{ScriptChan, XHRProgressMsg, XHRReleaseMsg};
+use script_task::{ScriptChan, XHRProgressMsg};
 use servo_util::str::DOMString;
 use servo_util::task::spawn_named;
 
@@ -144,7 +142,6 @@ pub struct XMLHttpRequest {
     send_flag: Cell<bool>,
 
     global: GlobalField,
-    pinned_count: Cell<uint>,
     timer: DOMRefCell<Timer>,
     fetch_time: Cell<i64>,
     terminate_sender: DOMRefCell<Option<Sender<TerminateReason>>>,
@@ -178,7 +175,6 @@ impl XMLHttpRequest {
             upload_events: Cell::new(false),
 
             global: GlobalField::from_rooted(global),
-            pinned_count: Cell::new(0),
             timer: DOMRefCell::new(Timer::new().unwrap()),
             fetch_time: Cell::new(0),
             terminate_sender: DOMRefCell::new(None),
@@ -195,14 +191,8 @@ impl XMLHttpRequest {
     }
 
     pub fn handle_progress(addr: TrustedXHRAddress, progress: XHRProgress) {
-        unsafe {
-            let xhr = JS::from_trusted_xhr_address(addr).root();
-            xhr.process_partial_response(progress);
-        }
-    }
-
-    pub fn handle_release(addr: TrustedXHRAddress) {
-        addr.release_once();
+        let xhr = addr.to_temporary().root();
+        xhr.process_partial_response(progress);
     }
 
     fn fetch(fetch_type: &SyncOrAsync, resource_task: ResourceTask,
@@ -214,9 +204,9 @@ impl XMLHttpRequest {
                 Sync(xhr) => {
                     xhr.process_partial_response(msg);
                 },
-                Async(addr, script_chan) => {
+                Async(ref addr, script_chan) => {
                     let ScriptChan(ref chan) = *script_chan;
-                    chan.send(XHRProgressMsg(addr, msg));
+                    chan.send(XHRProgressMsg(addr.clone(), msg));
                 }
             }
         }
@@ -629,9 +619,8 @@ impl<'a> XMLHttpRequestMethods for JSRef<'a, XMLHttpRequest> {
             // unpin it. This is to ensure that the object will stay alive
             // as long as there are (possibly cancelled) inflight events queued up
             // in the script task's port
-            let addr = unsafe {
-                self.to_trusted()
-            };
+            let addr = Trusted::new(self.global.root().root_ref().get_cx(), self,
+                                    script_chan.clone());
             spawn_named("XHRTask", proc() {
                 let _ = XMLHttpRequest::fetch(&mut Async(addr, &script_chan),
                                               resource_task,
@@ -639,8 +628,6 @@ impl<'a> XMLHttpRequestMethods for JSRef<'a, XMLHttpRequest> {
                                               terminate_receiver,
                                               cors_request,
                                               gen_id);
-                let ScriptChan(ref chan) = script_chan;
-                chan.send(XHRReleaseMsg(addr));
             });
             let timeout = self.timeout.get();
             if timeout > 0 {
@@ -771,20 +758,9 @@ impl XMLHttpRequestDerived for EventTarget {
     }
 }
 
-pub struct TrustedXHRAddress(pub *const c_void);
-
-impl TrustedXHRAddress {
-    pub fn release_once(self) {
-        unsafe {
-            JS::from_trusted_xhr_address(self).root().release_once();
-        }
-    }
-}
-
+pub type TrustedXHRAddress = Trusted<XMLHttpRequest>;
 
 trait PrivateXMLHttpRequestHelpers {
-    unsafe fn to_trusted(self) -> TrustedXHRAddress;
-    fn release_once(self);
     fn change_ready_state(self, XMLHttpRequestState);
     fn process_partial_response(self, progress: XHRProgress);
     fn terminate_ongoing_fetch(self);
@@ -799,33 +775,6 @@ trait PrivateXMLHttpRequestHelpers {
 }
 
 impl<'a> PrivateXMLHttpRequestHelpers for JSRef<'a, XMLHttpRequest> {
-    // Creates a trusted address to the object, and roots it. Always pair this with a release()
-    unsafe fn to_trusted(self) -> TrustedXHRAddress {
-        if self.pinned_count.get() == 0 {
-            JS_AddObjectRoot(self.global.root().root_ref().get_cx(), self.reflector().rootable());
-        }
-        let pinned_count = self.pinned_count.get();
-        self.pinned_count.set(pinned_count + 1);
-        TrustedXHRAddress(self.deref() as *const XMLHttpRequest as *const libc::c_void)
-    }
-
-    fn release_once(self) {
-        if self.sync.get() {
-            // Lets us call this at various termination cases without having to
-            // check self.sync every time, since the pinning mechanism only is
-            // meaningful during an async fetch
-            return;
-        }
-        assert!(self.pinned_count.get() > 0)
-        let pinned_count = self.pinned_count.get();
-        self.pinned_count.set(pinned_count - 1);
-        if self.pinned_count.get() == 0 {
-            unsafe {
-                JS_RemoveObjectRoot(self.global.root().root_ref().get_cx(), self.reflector().rootable());
-            }
-        }
-    }
-
     fn change_ready_state(self, rs: XMLHttpRequestState) {
         assert!(self.ready_state.get() != rs)
         self.ready_state.set(rs);

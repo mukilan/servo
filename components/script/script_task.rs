@@ -17,6 +17,7 @@ use dom::bindings::conversions;
 use dom::bindings::conversions::{FromJSValConvertible, Empty};
 use dom::bindings::global;
 use dom::bindings::js::{JS, JSRef, RootCollection, Temporary, OptionalRootable};
+use dom::bindings::refcounted::LiveDOMReferences;
 use dom::bindings::trace::JSTraceable;
 use dom::bindings::utils::{wrap_for_same_compartment, pre_wrap};
 use dom::document::{Document, HTMLDocument, DocumentHelpers, FromParser};
@@ -69,6 +70,7 @@ use js::rust::{Cx, RtUtils};
 use js;
 use url::Url;
 
+use libc;
 use libc::size_t;
 use std::any::{Any, AnyRefExt};
 use std::collections::HashSet;
@@ -105,15 +107,13 @@ pub enum ScriptMsg {
     ExitWindowMsg(PipelineId),
     /// Notifies the script of progress on a fetch (dispatched to all tasks).
     XHRProgressMsg(TrustedXHRAddress, XHRProgress),
-    /// Releases one reference to the XHR object (dispatched to all tasks).
-    XHRReleaseMsg(TrustedXHRAddress),
     /// Message sent through Worker.postMessage (only dispatched to
     /// DedicatedWorkerGlobalScope).
-    DOMMessage(*mut u64, size_t),
+    DOMMessage(TrustedWorkerAddress, *mut u64, size_t),
     /// Posts a message to the Worker object (dispatched to all tasks).
     WorkerPostMessage(TrustedWorkerAddress, *mut u64, size_t),
-    /// Releases one reference to the Worker object (dispatched to all tasks).
-    WorkerRelease(TrustedWorkerAddress),
+    /// A DOM object's last pinned reference was removed (dispatched to all tasks).
+    RefcountCleanup(*const libc::c_void),
 }
 
 /// Encapsulates internal communication within the script task.
@@ -364,6 +364,7 @@ impl ScriptTask {
     }
 
     pub fn new_rt_and_cx() -> (js::rust::rt, Rc<Cx>) {
+        LiveDOMReferences::initialize();
         let js_runtime = js::rust::rt();
         assert!({
             let ptr: *mut JSRuntime = (*js_runtime).ptr;
@@ -544,10 +545,9 @@ impl ScriptTask {
                 FromScript(ExitWindowMsg(id)) => self.handle_exit_window_msg(id),
                 FromConstellation(ResizeMsg(..)) => panic!("should have handled ResizeMsg already"),
                 FromScript(XHRProgressMsg(addr, progress)) => XMLHttpRequest::handle_progress(addr, progress),
-                FromScript(XHRReleaseMsg(addr)) => XMLHttpRequest::handle_release(addr),
                 FromScript(DOMMessage(..)) => panic!("unexpected message"),
                 FromScript(WorkerPostMessage(addr, data, nbytes)) => Worker::handle_message(addr, data, nbytes),
-                FromScript(WorkerRelease(addr)) => Worker::handle_release(addr),
+                FromScript(RefcountCleanup(addr)) => LiveDOMReferences::cleanup(self.get_cx(), addr),
                 FromDevtools(EvaluateJS(id, s, reply)) => self.handle_evaluate_js(id, s, reply),
                 FromDevtools(GetRootNode(id, reply)) => self.handle_get_root_node(id, reply),
                 FromDevtools(GetDocumentElement(id, reply)) => self.handle_get_document_element(id, reply),
