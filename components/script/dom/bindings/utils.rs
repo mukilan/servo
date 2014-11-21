@@ -451,6 +451,7 @@ pub fn reflect_dom_object<T: Reflectable>
 #[allow(raw_pointer_deriving, unrooted_must_root)]
 #[deriving(PartialEq)]
 #[must_root]
+#[reflector]
 pub struct Reflector {
     object: Cell<*mut JSObject>,
 }

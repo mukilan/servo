@@ -17,6 +17,8 @@ declare_lint!(UNROOTED_MUST_ROOT, Deny,
               "Warn and report usage of unrooted jsmanaged objects")
 declare_lint!(PRIVATIZE, Deny,
               "Allows to enforce private fields for struct definitions")
+declare_lint!(REFLECTOR_BASE, Deny,
+              "Enforce that the first field (transitively) of a type is a Reflector")
 
 /// Lint for auditing transmutes
 ///
@@ -40,6 +42,9 @@ pub struct UnrootedPass;
 ///
 /// This lint (disable with `-A privatize`/`#[allow(privatize)]`) ensures all types marked with `#[privatize]` have no private fields
 pub struct PrivatizePass;
+
+/// Lint to ensure that the first field (transitively) of evey DOM object is a Reflector field.
+pub struct ReflectorBasePass;
 
 impl LintPass for TransmutePass {
     fn get_lints(&self) -> LintArray {
@@ -200,6 +205,42 @@ impl LintPass for PrivatizePass {
                     }
                     _ => {}
                 }
+            }
+        }
+    }
+}
+
+impl LintPass for ReflectorBasePass {
+    fn get_lints(&self) -> LintArray {
+        lint_array!(REFLECTOR_BASE)
+    }
+
+    fn check_struct_def(&mut self, cx: &Context, def: &ast::StructDef, i: ast::Ident, _gen: &ast::Generics, id: ast::NodeId) {
+        fn struct_has_reflector_base(cx: &Context, def: &ast::StructDef) -> bool {
+            match def.fields[0].node.ty.node {
+                ast::TyPath(_, _, id) => {
+                    let def = cx.tcx.def_map.borrow().get_copy(&id);
+                    let def_id = def.def_id();
+                    ty::has_attr(cx.tcx, def_id, "reflector") ||
+                        (ast_util::is_local(def_id) &&
+                         match cx.tcx.map.expect_item(def_id.node).node {
+                             ast::ItemStruct(ref sd, _) => struct_has_reflector_base(cx, &**sd),
+                             _ => false,
+                         })
+                }
+                _ => false,
+            }
+        }
+
+        // hide the unused attribute warning
+        if ty::has_attr(cx.tcx, ast_util::local_def(id), "reflector") {
+            return;
+        }
+
+        if ty::has_attr(cx.tcx, ast_util::local_def(id), "reflector_base") {
+            if !struct_has_reflector_base(cx, def) {
+                cx.span_lint(REFLECTOR_BASE, def.fields[0].span,
+                             format!("First field of {} must be a Reflector (transitively)", i.as_str()).as_slice());
             }
         }
     }

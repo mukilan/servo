@@ -50,8 +50,8 @@ pub enum EventCancelable {
 
 #[dom_struct]
 pub struct Event {
-    type_id: EventTypeId,
     reflector_: Reflector,
+    type_id: EventTypeId,
     current_target: MutNullableJS<EventTarget>,
     target: MutNullableJS<EventTarget>,
     type_: DOMRefCell<DOMString>,

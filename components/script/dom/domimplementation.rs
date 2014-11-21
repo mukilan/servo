@@ -25,8 +25,8 @@ use servo_util::str::DOMString;
 
 #[dom_struct]
 pub struct DOMImplementation {
-    document: JS<Document>,
     reflector_: Reflector,
+    document: JS<Document>,
 }
 
 impl DOMImplementation {

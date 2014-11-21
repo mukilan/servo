@@ -14,8 +14,8 @@ use std::collections::HashMap;
 
 #[dom_struct]
 pub struct DOMStringMap {
-    map: DOMRefCell<HashMap<DOMString, DOMString>>,
     reflector_: Reflector,
+    map: DOMRefCell<HashMap<DOMString, DOMString>>,
 }
 
 impl DOMStringMap {

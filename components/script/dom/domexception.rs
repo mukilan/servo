@@ -63,8 +63,8 @@ impl DOMErrorName {
 
 #[dom_struct]
 pub struct DOMException {
+    reflector_: Reflector,
     code: DOMErrorName,
-    reflector_: Reflector
 }
 
 impl DOMException {

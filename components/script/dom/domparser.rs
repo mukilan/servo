@@ -16,8 +16,8 @@ use servo_util::str::DOMString;
 
 #[dom_struct]
 pub struct DOMParser {
+    reflector_: Reflector,
     window: JS<Window>, //XXXjdm Document instead?
-    reflector_: Reflector
 }
 
 impl DOMParser {

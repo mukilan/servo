@@ -19,8 +19,8 @@ pub enum NodeListType {
 
 #[dom_struct]
 pub struct NodeList {
-    list_type: NodeListType,
     reflector_: Reflector,
+    list_type: NodeListType,
 }
 
 impl NodeList {

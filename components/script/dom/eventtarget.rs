@@ -69,8 +69,8 @@ pub struct EventListenerEntry {
 
 #[dom_struct]
 pub struct EventTarget {
-    type_id: EventTargetTypeId,
     reflector_: Reflector,
+    type_id: EventTargetTypeId,
     handlers: DOMRefCell<HashMap<DOMString, Vec<EventListenerEntry>, FnvHasher>>,
 }
 

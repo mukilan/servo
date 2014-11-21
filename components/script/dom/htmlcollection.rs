@@ -31,8 +31,8 @@ pub enum CollectionTypeId {
 
 #[dom_struct]
 pub struct HTMLCollection {
-    collection: CollectionTypeId,
     reflector_: Reflector,
+    collection: CollectionTypeId,
 }
 
 impl HTMLCollection {

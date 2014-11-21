@@ -28,8 +28,8 @@ pub enum FormDatum {
 
 #[dom_struct]
 pub struct FormData {
-    data: DOMRefCell<HashMap<DOMString, Vec<FormDatum>>>,
     reflector_: Reflector,
+    data: DOMRefCell<HashMap<DOMString, Vec<FormDatum>>>,
     global: GlobalField,
     form: Option<JS<HTMLFormElement>>
 }
