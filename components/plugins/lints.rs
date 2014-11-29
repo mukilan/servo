@@ -217,30 +217,29 @@ impl LintPass for ReflectorBasePass {
 
     fn check_struct_def(&mut self, cx: &Context, def: &ast::StructDef, i: ast::Ident, _gen: &ast::Generics, id: ast::NodeId) {
         fn struct_has_reflector_base(cx: &Context, def: &ast::StructDef) -> bool {
+            if def.fields.len() == 0 {
+                return false;
+            }
+
             match def.fields[0].node.ty.node {
                 ast::TyPath(_, _, id) => {
                     let def = cx.tcx.def_map.borrow().get_copy(&id);
                     let def_id = def.def_id();
+                    // Transitively, either the field field must be a reflector, or
+                    // claim that it inherits from something with a reflector as the
+                    // first field. This claim will be verified when the actual type
+                    // of the claimant is linted.
                     ty::has_attr(cx.tcx, def_id, "reflector") ||
-                        (ast_util::is_local(def_id) &&
-                         match cx.tcx.map.expect_item(def_id.node).node {
-                             ast::ItemStruct(ref sd, _) => struct_has_reflector_base(cx, &**sd),
-                             _ => false,
-                         })
+                        ty::has_attr(cx.tcx, def_id, "reflector_base")
                 }
                 _ => false,
             }
         }
 
-        // hide the unused attribute warning
-        if ty::has_attr(cx.tcx, ast_util::local_def(id), "reflector") {
-            return;
-        }
-
         if ty::has_attr(cx.tcx, ast_util::local_def(id), "reflector_base") {
             if !struct_has_reflector_base(cx, def) {
                 cx.span_lint(REFLECTOR_BASE, def.fields[0].span,
-                             format!("First field of {} must be a Reflector (transitively)", i.as_str()).as_slice());
+                             format!("First field of {} must be a Reflector (or inherit from a type marked #[reflector_base])", i.as_str()).as_slice());
             }
         }
     }

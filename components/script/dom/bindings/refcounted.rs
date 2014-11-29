@@ -14,6 +14,15 @@
 //! obtain a `Trusted<T>` from that object and pass it along with each operation.
 //! A usable pointer to the original DOM object can be obtained on the script task
 //! from a `Trusted<T>` via the `to_temporary` method.
+//!
+//! The implementation of Trusted<T> is as follows:
+//! A hashtable resides in the script task, keyed on the pointer to the Rust DOM object.
+//! The values in this hashtable are atomic reference counts. When a Trusted<T> object is
+//! created or cloned, this count is increased. When a Trusted<T> is dropped, the count
+//! decreases. If the count hits zero, a message is dispatched to the script task to remove
+//! the entry from the hashmap if the count is still zero. The JS reflector for the DOM object
+//! is rooted when a hashmap entry is first created, and unrooted when the hashmap entry
+//! is removed.
 
 use dom::bindings::js::{Temporary, JS, JSRef};
 use dom::bindings::utils::{Reflector, Reflectable};
@@ -129,12 +138,11 @@ impl LiveDOMReferences {
         }
     }
 
-    /// Unpin the given DOM object. Should only be called in response to said
-    /// object's number of pinned references reaching 0.
+    /// Unpin the given DOM object if its refcount is 0.
     pub fn cleanup(cx: *mut JSContext, raw_reflectable: *const libc::c_void) {
         let live_references = LiveReferences.get().unwrap();
         let reflectable = raw_reflectable as *const Reflector;
-        let mut table = live_references.table.borrow_mut();        
+        let mut table = live_references.table.borrow_mut();
         match table.entry(raw_reflectable) {
             Occupied(entry) => {
                 if *entry.get().lock() != 0 {

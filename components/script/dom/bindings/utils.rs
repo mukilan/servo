@@ -448,7 +448,7 @@ pub fn reflect_dom_object<T: Reflectable>
 }
 
 /// A struct to store a reference to the reflector of a DOM object.
-#[allow(raw_pointer_deriving, unrooted_must_root)]
+#[allow(raw_pointer_deriving, unrooted_must_root, unused_attributes)]
 #[deriving(PartialEq)]
 #[must_root]
 #[reflector]
