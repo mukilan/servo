@@ -15,7 +15,7 @@ use dom::bindings::utils::{Reflectable, Reflector, reflect_dom_object};
 use dom::dedicatedworkerglobalscope::DedicatedWorkerGlobalScope;
 use dom::eventtarget::{EventTarget, EventTargetHelpers, WorkerTypeId};
 use dom::messageevent::MessageEvent;
-use script_task::{ScriptChan, DOMMessage};
+use script_task::{ScriptChan, DOMMessage, ScriptMsg};
 
 use servo_util::str::DOMString;
 
@@ -38,11 +38,11 @@ pub struct Worker {
     global: GlobalField,
     /// Sender to the Receiver associated with the DedicatedWorkerGlobalScope
     /// this Worker created.
-    sender: ScriptChan,
+    sender: Sender<(TrustedWorkerAddress, ScriptMsg)>,
 }
 
 impl Worker {
-    fn new_inherited(global: &GlobalRef, sender: ScriptChan) -> Worker {
+    fn new_inherited(global: &GlobalRef, sender: Sender<(TrustedWorkerAddress, ScriptMsg)>) -> Worker {
         Worker {
             eventtarget: EventTarget::new_inherited(WorkerTypeId),
             refcount: Cell::new(0),
@@ -51,7 +51,7 @@ impl Worker {
         }
     }
 
-    pub fn new(global: &GlobalRef, sender: ScriptChan) -> Temporary<Worker> {
+    pub fn new(global: &GlobalRef, sender: Sender<(TrustedWorkerAddress, ScriptMsg)>) -> Temporary<Worker> {
         reflect_dom_object(box Worker::new_inherited(global, sender),
                            global,
                            WorkerBinding::Wrap)
@@ -67,13 +67,13 @@ impl Worker {
         };
 
         let resource_task = global.resource_task();
-        let (receiver, sender) = ScriptChan::new();
 
+        let (sender, receiver) = channel();
         let worker = Worker::new(global, sender.clone()).root();
-        let worker_ref = Trusted::new(global.get_cx(), *worker, global.script_chan().clone());
+        let worker_ref = Trusted::new(global.get_cx(), *worker, global.script_chan());
 
         DedicatedWorkerGlobalScope::run_worker_scope(
-            worker_url, worker_ref, resource_task, global.script_chan().clone(),
+            worker_url, worker_ref, resource_task, global.script_chan(),
             sender, receiver);
 
         Ok(Temporary::from_rooted(*worker))
@@ -112,8 +112,7 @@ impl<'a> WorkerMethods for JSRef<'a, Worker> {
         }
 
         let addr = Trusted::new(cx, self, self.global.root().root_ref().script_chan().clone());
-        let ScriptChan(ref sender) = self.sender;
-        sender.send(DOMMessage(addr, data, nbytes));
+        self.sender.send((addr, DOMMessage(data, nbytes)));
         Ok(())
     }
 

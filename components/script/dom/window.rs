@@ -49,7 +49,7 @@ use time;
 #[dom_struct]
 pub struct Window {
     eventtarget: EventTarget,
-    script_chan: ScriptChan,
+    script_chan: Box<ScriptChan+Send>,
     control_chan: ScriptControlChan,
     console: MutNullableJS<Console>,
     location: MutNullableJS<Location>,
@@ -71,8 +71,8 @@ impl Window {
         (*js_info.as_ref().unwrap().js_context).ptr
     }
 
-    pub fn script_chan<'a>(&'a self) -> &'a ScriptChan {
-        &self.script_chan
+    pub fn script_chan(&self) -> Box<ScriptChan+Send> {
+        self.script_chan.clone()
     }
 
     pub fn control_chan<'a>(&'a self) -> &'a ScriptControlChan {
@@ -190,8 +190,7 @@ impl<'a> WindowMethods for JSRef<'a, Window> {
     }
 
     fn Close(self) {
-        let ScriptChan(ref chan) = self.script_chan;
-        chan.send(ExitWindowMsg(self.page.id.clone()));
+        self.script_chan.send(ExitWindowMsg(self.page.id.clone()));
     }
 
     fn Document(self) -> Temporary<Document> {
@@ -375,11 +374,10 @@ impl<'a> WindowHelpers for JSRef<'a, Window> {
         let url = UrlParser::new().base_url(&base_url).parse(href.as_slice());
         // FIXME: handle URL parse errors more gracefully.
         let url = url.unwrap();
-        let ScriptChan(ref script_chan) = self.script_chan;
         if href.as_slice().starts_with("#") {
-            script_chan.send(TriggerFragmentMsg(self.page.id, url));
+            self.script_chan.send(TriggerFragmentMsg(self.page.id, url));
         } else {
-            script_chan.send(TriggerLoadMsg(self.page.id, LoadData::new(url)));
+            self.script_chan.send(TriggerLoadMsg(self.page.id, LoadData::new(url)));
         }
     }
 
@@ -392,7 +390,7 @@ impl<'a> WindowHelpers for JSRef<'a, Window> {
 impl Window {
     pub fn new(cx: *mut JSContext,
                page: Rc<Page>,
-               script_chan: ScriptChan,
+               script_chan: Box<ScriptChan+Send>,
                control_chan: ScriptControlChan,
                compositor: Box<ScriptListener+'static>,
                image_cache_task: ImageCacheTask)

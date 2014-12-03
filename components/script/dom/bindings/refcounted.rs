@@ -47,14 +47,14 @@ pub struct Trusted<T> {
     /// sending `Trusted<T>` between tasks, regardless of T's sendability.
     ptr: *const libc::c_void,
     refcount: Arc<Mutex<uint>>,
-    script_chan: ScriptChan,
+    script_chan: Box<ScriptChan + Send>,
 }
 
 impl<T: Reflectable> Trusted<T> {
     /// Create a new `Trusted<T>` instance from an existing DOM pointer. The DOM object will
     /// be prevented from being GCed for the duration of the resulting `Trusted<T>` object's
     /// lifetime.
-    pub fn new(cx: *mut JSContext, ptr: JSRef<T>, script_chan: ScriptChan) -> Trusted<T> {
+    pub fn new(cx: *mut JSContext, ptr: JSRef<T>, script_chan: Box<ScriptChan + Send>) -> Trusted<T> {
         let live_references = LiveReferences.get().unwrap();
         let refcount = live_references.addref(cx, &*ptr as *const T);
         Trusted {
@@ -97,8 +97,7 @@ impl<T: Reflectable> Drop for Trusted<T> {
         assert!(*refcount > 0);
         *refcount -= 1;
         if *refcount == 0 {
-            let ScriptChan(ref chan) = self.script_chan;
-            chan.send(RefcountCleanup(self.ptr));
+            self.script_chan.send(RefcountCleanup(self.ptr));
         }
     }
 }

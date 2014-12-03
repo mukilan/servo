@@ -63,7 +63,7 @@ use servo_util::task_state;
 
 use geom::point::Point2D;
 use js::jsapi::{JS_SetWrapObjectCallbacks, JS_SetGCZeal, JS_DEFAULT_ZEAL_FREQ, JS_GC};
-use js::jsapi::{JSContext, JSRuntime, JSTracer};
+use js::jsapi::{JSContext, JSRuntime};
 use js::jsapi::{JS_SetGCParameter, JSGC_MAX_BYTES};
 use js::jsapi::{JS_SetGCCallback, JSGCStatus, JSGC_BEGIN, JSGC_END};
 use js::rust::{Cx, RtUtils};
@@ -109,24 +109,42 @@ pub enum ScriptMsg {
     XHRProgressMsg(TrustedXHRAddress, XHRProgress),
     /// Message sent through Worker.postMessage (only dispatched to
     /// DedicatedWorkerGlobalScope).
-    DOMMessage(TrustedWorkerAddress, *mut u64, size_t),
+    DOMMessage(*mut u64, size_t),
     /// Posts a message to the Worker object (dispatched to all tasks).
     WorkerPostMessage(TrustedWorkerAddress, *mut u64, size_t),
     /// A DOM object's last pinned reference was removed (dispatched to all tasks).
     RefcountCleanup(*const libc::c_void),
 }
 
+/// A cloneable interface for communicating with an event loop.
+pub trait ScriptChan {
+    /// Send a message to the associated event loop.
+    fn send(&self, msg: ScriptMsg);
+    /// Clone this handle.
+    fn clone(&self) -> Box<ScriptChan+Send>;
+}
+
 /// Encapsulates internal communication within the script task.
-#[deriving(Clone)]
-pub struct ScriptChan(pub Sender<ScriptMsg>);
+#[jstraceable]
+pub struct NonWorkerScriptChan(pub Sender<ScriptMsg>);
 
-no_jsmanaged_fields!(ScriptChan)
+impl ScriptChan for NonWorkerScriptChan {
+    fn send(&self, msg: ScriptMsg) {
+        let NonWorkerScriptChan(ref chan) = *self;
+        chan.send(msg);
+    }
 
-impl ScriptChan {
+    fn clone(&self) -> Box<ScriptChan+Send> {
+        let NonWorkerScriptChan(ref chan) = *self;
+        box NonWorkerScriptChan(chan.clone())
+    }
+}
+
+impl NonWorkerScriptChan {
     /// Creates a new script chan.
-    pub fn new() -> (Receiver<ScriptMsg>, ScriptChan) {
+    pub fn new() -> (Receiver<ScriptMsg>, Box<NonWorkerScriptChan>) {
         let (chan, port) = channel();
-        (port, ScriptChan(chan))
+        (port, box NonWorkerScriptChan(chan))
     }
 }
 
@@ -161,7 +179,7 @@ pub struct ScriptTask {
     port: Receiver<ScriptMsg>,
     /// A channel to hand out to script task-based entities that need to be able to enqueue
     /// events in the event queue.
-    chan: ScriptChan,
+    chan: NonWorkerScriptChan,
 
     /// A channel to hand out to tasks that need to respond to a message from the script task.
     control_chan: ScriptControlChan,
@@ -274,7 +292,7 @@ impl ScriptTaskFactory for ScriptTask {
                                               box compositor as Box<ScriptListener>,
                                               layout_chan,
                                               script_port,
-                                              ScriptChan(script_chan),
+                                              NonWorkerScriptChan(script_chan),
                                               control_chan,
                                               control_port,
                                               constellation_chan,
@@ -305,7 +323,7 @@ impl ScriptTask {
                compositor: Box<ScriptListener+'static>,
                layout_chan: LayoutChan,
                port: Receiver<ScriptMsg>,
-               chan: ScriptChan,
+               chan: NonWorkerScriptChan,
                control_chan: ScriptControlChan,
                control_port: Receiver<ConstellationControlMsg>,
                constellation_chan: ConstellationChan,

@@ -31,6 +31,7 @@ use dom::bindings::js::JS;
 use dom::bindings::refcounted::Trusted;
 use dom::bindings::utils::{Reflectable, Reflector, WindowProxyHandler};
 use dom::node::{Node, TrustedNodeAddress};
+use script_task::ScriptChan;
 
 use collections::hash::{Hash, Hasher};
 use geom::rect::Rect;
@@ -217,6 +218,13 @@ no_jsmanaged_fields!(LayoutChan)
 no_jsmanaged_fields!(WindowProxyHandler)
 no_jsmanaged_fields!(UntrustedNodeAddress)
 no_jsmanaged_fields!(LengthOrPercentageOrAuto)
+
+impl JSTraceable for Box<ScriptChan+Send> {
+    #[inline]
+    fn trace(&self, _trc: *mut JSTracer) {
+        // Do nothing
+    }
+}
 
 impl<'a> JSTraceable for &'a str {
     #[inline]

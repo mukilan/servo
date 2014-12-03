@@ -108,7 +108,7 @@ impl XHRProgress {
 
 enum SyncOrAsync<'a> {
     Sync(JSRef<'a, XMLHttpRequest>),
-    Async(TrustedXHRAddress, &'a ScriptChan)
+    Async(TrustedXHRAddress, Box<ScriptChan+Send>)
 }
 
 enum TerminateReason {
@@ -204,9 +204,8 @@ impl XMLHttpRequest {
                 Sync(xhr) => {
                     xhr.process_partial_response(msg);
                 },
-                Async(ref addr, script_chan) => {
-                    let ScriptChan(ref chan) = *script_chan;
-                    chan.send(XHRProgressMsg(addr.clone(), msg));
+                Async(ref addr, ref script_chan) => {
+                    script_chan.send(XHRProgressMsg(addr.clone(), msg));
                 }
             }
         }
@@ -613,7 +612,7 @@ impl<'a> XMLHttpRequestMethods for JSRef<'a, XMLHttpRequest> {
                                          terminate_receiver, cors_request, gen_id);
         } else {
             self.fetch_time.set(time::now().to_timespec().sec);
-            let script_chan = global.root_ref().script_chan().clone();
+            let script_chan = global.root_ref().script_chan();
             // Pin the object before launching the fetch task.
             // The XHRReleaseMsg sent when the fetch task completes will
             // unpin it. This is to ensure that the object will stay alive
@@ -622,7 +621,7 @@ impl<'a> XMLHttpRequestMethods for JSRef<'a, XMLHttpRequest> {
             let addr = Trusted::new(self.global.root().root_ref().get_cx(), self,
                                     script_chan.clone());
             spawn_named("XHRTask", proc() {
-                let _ = XMLHttpRequest::fetch(&mut Async(addr, &script_chan),
+                let _ = XMLHttpRequest::fetch(&mut Async(addr, script_chan),
                                               resource_task,
                                               load_data,
                                               terminate_receiver,
