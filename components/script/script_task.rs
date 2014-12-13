@@ -18,7 +18,7 @@ use dom::bindings::conversions::{FromJSValConvertible, Empty};
 use dom::bindings::global;
 use dom::bindings::js::{JS, JSRef, RootCollection, Temporary, OptionalRootable};
 use dom::bindings::refcounted::LiveDOMReferences;
-use dom::bindings::trace::JSTraceable;
+use dom::bindings::trace::{JSTraceable, RootedCollectionSet, RootedCollections, trace_collections};
 use dom::bindings::utils::{wrap_for_same_compartment, pre_wrap};
 use dom::document::{Document, HTMLDocument, DocumentHelpers, FromParser};
 use dom::element::{Element, HTMLButtonElementTypeId, HTMLInputElementTypeId};
@@ -64,7 +64,7 @@ use servo_util::task_state;
 use geom::point::Point2D;
 use js::jsapi::{JS_SetWrapObjectCallbacks, JS_SetGCZeal, JS_DEFAULT_ZEAL_FREQ, JS_GC};
 use js::jsapi::{JSContext, JSRuntime};
-use js::jsapi::{JS_SetGCParameter, JSGC_MAX_BYTES};
+use js::jsapi::{JS_SetExtraGCRootsTracer, JS_SetGCParameter, JSGC_MAX_BYTES};
 use js::jsapi::{JS_SetGCCallback, JSGCStatus, JSGC_BEGIN, JSGC_END};
 use js::rust::{Cx, RtUtils};
 use js;
@@ -382,13 +382,21 @@ impl ScriptTask {
     }
 
     pub fn new_rt_and_cx() -> (js::rust::rt, Rc<Cx>) {
+        RootedCollectionSet::initialize();
         LiveDOMReferences::initialize();
+
         let js_runtime = js::rust::rt();
         assert!({
             let ptr: *mut JSRuntime = (*js_runtime).ptr;
             ptr.is_not_null()
         });
 
+
+        let collections = RootedCollections.get();
+        unsafe {
+            JS_SetExtraGCRootsTracer((*js_runtime).ptr, Some(trace_collections),
+                                     collections.as_ref().unwrap().deref() as *const _ as *mut _);
+        }
         // Unconstrain the runtime's threshold on nominal heap size, to avoid
         // triggering GC too often if operating continuously near an arbitrary
         // finite threshold. This leaves the maximum-JS_malloc-bytes threshold

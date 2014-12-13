@@ -53,8 +53,9 @@ use servo_msg::constellation_msg::ConstellationChan;
 use servo_util::smallvec::{SmallVec1, SmallVec};
 use servo_util::str::LengthOrPercentageOrAuto;
 use std::cell::{Cell, RefCell};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::comm::{Receiver, Sender};
+use std::intrinsics::return_address;
 use std::io::timer::Timer;
 use std::rc::Rc;
 use string_cache::{Atom, Namespace};
@@ -263,3 +264,134 @@ impl JSTraceable for TrustedNodeAddress {
         }
     }
 }
+
+/// Holds a set of vectors that need to be rooted
+pub struct RootedCollectionSet {
+    set: RefCell<Vec<HashSet<*const ()>>>
+}
+
+/// TLV Holds a set of vectors that need to be rooted
+local_data_key!(pub RootedCollections: RootedCollectionSet)
+
+enum CollectionType {
+    DOMObjects,
+    JSVals,
+    JSObjects,
+}
+
+
+impl RootedCollectionSet {
+    /// Called from script_task
+    pub fn initialize() {
+        assert!(RootedCollections.get().is_none());
+        RootedCollections.replace(Some(RootedCollectionSet {
+            set: RefCell::new(vec!(HashSet::new(), HashSet::new(), HashSet::new()))
+        }));
+    }
+
+    fn remove<T: VecRootableType>(collection: &mut RootedVec<T>) {
+        let type_ = VecRootableType::tag(None::<T>);
+        let collections = RootedCollections.get();
+        let mut collections = collections.as_ref().unwrap().set.borrow_mut();
+        assert!((*collections)[type_ as uint].remove(&(collection as *mut _ as *const _)));
+    }
+
+    fn add<T: VecRootableType>(collection: &RootedVec<T>) {
+        let type_ = VecRootableType::tag(None::<T>);
+        let collections = RootedCollections.get();
+        let mut collections = collections.as_ref().unwrap().set.borrow_mut();
+        (*collections)[type_ as uint].insert(collection as *const _ as *const _);
+    }
+
+    unsafe fn trace(&self, tracer: *mut JSTracer) {
+        fn trace_collection_type<T: JSTraceable>(tracer: *mut JSTracer,
+                                                 collections: *const HashSet<*const RootedVec<T>>) {
+            unsafe {
+                for collection in (*collections).iter() {
+                    let _ = (**collection).trace(tracer);
+                }
+            }
+        }
+
+        let collections = self.set.borrow();
+
+        let dom_collections = &(*collections)[DOMObjects as uint] as *const _ as *const HashSet<*const RootedVec<*const Reflector>>;
+        for dom_collection in (*dom_collections).iter() {
+            for reflector in (**dom_collection).iter() {
+                trace_reflector(tracer, "", &**reflector);
+            }
+        }
+
+        trace_collection_type(tracer,
+                              &(*collections)[JSVals as uint] as *const _ as *const HashSet<*const RootedVec<JSVal>>);
+        trace_collection_type(tracer,
+                              &(*collections)[JSObjects as uint] as *const _ as *const HashSet<*const RootedVec<*mut JSObject>>);
+    }
+}
+
+
+/// Trait implemented by all types that can be used with RootedVec
+trait VecRootableType {
+    /// Return the type tag used to determine how to trace RootedVec
+    fn tag(_a: Option<Self>) -> CollectionType;
+}
+
+impl<T: Reflectable> VecRootableType for JS<T> {
+    fn tag(_a: Option<JS<T>>) -> CollectionType { DOMObjects }
+}
+
+impl VecRootableType for JSVal {
+    fn tag(_a: Option<JSVal>) -> CollectionType { JSVals }
+}
+
+impl VecRootableType for *mut JSObject {
+    fn tag(_a: Option<*mut JSObject>) -> CollectionType { JSObjects }
+}
+
+/// A vector of items that are rooted for the lifetime
+/// of this struct
+#[allow(unrooted_must_root)]
+#[jstraceable]
+pub struct RootedVec<T> {
+    v: Vec<T>
+}
+
+
+impl<T: VecRootableType> RootedVec<T> {
+    /// Create a vector of items of type T that is rooted for
+    /// the lifetime of this struct
+    pub fn new() -> RootedVec<T> {
+        let ret = RootedVec::<T> { v: vec!() };
+        unsafe {
+            RootedCollectionSet::add::<T>(&*(return_address() as *const _));
+        }
+        ret
+    }
+
+}
+
+#[unsafe_destructor]
+impl<T: VecRootableType> Drop for RootedVec<T> {
+    fn drop(&mut self) {
+        RootedCollectionSet::remove(self);
+    }
+}
+
+impl<T> Deref<Vec<T>> for RootedVec<T> {
+    fn deref(&self) -> &Vec<T> {
+        &self.v
+    }
+}
+
+impl<T> DerefMut<Vec<T>> for RootedVec<T> {
+    fn deref_mut(&mut self) -> &mut Vec<T> {
+        &mut self.v
+    }
+}
+
+
+/// SM Callback that traces the rooted collections
+pub unsafe extern fn trace_collections(tracer: *mut JSTracer, data: *mut libc::c_void) {
+    (*(data as *const RootedCollectionSet)).trace(tracer);
+}
+
