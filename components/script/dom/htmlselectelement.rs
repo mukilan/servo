@@ -23,8 +23,8 @@ use dom::virtualmethods::VirtualMethods;
 use util::str::DOMString;
 use string_cache::Atom;
 
-use std::borrow::ToOwned;
 use std::default::Default;
+use std::borrow::ToOwned;
 
 #[dom_struct]
 pub struct HTMLSelectElement {

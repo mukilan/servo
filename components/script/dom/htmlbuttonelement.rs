@@ -23,8 +23,8 @@ use dom::node::{DisabledStateHelpers, Node, NodeHelpers, NodeTypeId, document_fr
 use dom::validitystate::ValidityState;
 use dom::virtualmethods::VirtualMethods;
 
-use util::str::DOMString;
 use string_cache::Atom;
+use util::str::DOMString;
 
 use std::ascii::OwnedAsciiExt;
 use std::borrow::ToOwned;

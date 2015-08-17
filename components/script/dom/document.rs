@@ -93,7 +93,7 @@ use num::ToPrimitive;
 use std::iter::FromIterator;
 use std::borrow::ToOwned;
 use std::collections::{HashMap, HashSet};
-use std::collections::hash_map::Entry::{Occupied, Vacant};
+use std::collections::hash_map::Entry::Occupied;
 use std::ascii::AsciiExt;
 use std::cell::{Cell, Ref, RefMut, RefCell};
 use std::default::Default;
@@ -468,14 +468,11 @@ impl<'a> DocumentHelpers<'a> for &'a Document {
 
     fn unregister_form_id_listener<T: ?Sized + FormControl>(self, id: DOMString, listener: &T) {
         let mut map = self.form_id_listener_map.borrow_mut();
-        match map.entry(Atom::from_slice(&id)) {
-            Occupied(mut entry) => {
-                entry.get_mut().remove(&JS::from_ref(listener.to_element()));
-                if entry.get().is_empty() {
-                    entry.remove();
-                }
+        if let Occupied(mut entry) = map.entry(Atom::from_slice(&id)) {
+            entry.get_mut().remove(&JS::from_ref(listener.to_element()));
+            if entry.get().is_empty() {
+                entry.remove();
             }
-            Vacant(_) =>  ()
         }
     }
 

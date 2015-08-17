@@ -610,13 +610,17 @@ pub trait FormControl {
         };
 
         if old_owner != new_owner {
-            old_owner.r().map(|o| o.remove_control(self));
-            new_owner.r().map(|o| o.add_control(self));
+            if let Some(ref o) = old_owner {
+                o.remove_control(self);
+            }
+            if let Some(ref o) = new_owner {
+                o.add_control(self);
+            }
             self.set_form_owner(new_owner.r());
         }
     }
 
-    // https://html.spec.whatwg.org/multipage/#form-owner
+    // https://html.spec.whatwg.org/multipage/#association-of-controls-and-forms:category-form-attr-3
     fn after_set_form_attr(&self) {
         let elem = self.to_element();
         let form_id = elem.get_string_attribute(&atom!(form));
@@ -630,6 +634,7 @@ pub trait FormControl {
         self.reset_form_owner();
     }
 
+    // https://html.spec.whatwg.org/multipage/#association-of-controls-and-forms:category-form-attr-3
     fn before_remove_form_attr(&self) {
         let elem = self.to_element();
         let form_id = elem.get_string_attribute(&atom!(form));
@@ -640,10 +645,12 @@ pub trait FormControl {
         }
     }
 
+    // https://html.spec.whatwg.org/multipage/#association-of-controls-and-forms:category-form-attr-3
     fn after_remove_form_attr(&self) {
         self.reset_form_owner();
     }
 
+    // https://html.spec.whatwg.org/multipage/#association-of-controls-and-forms:form-associated-element-8
     fn bind_form_control_to_tree(&self) {
         let elem = self.to_element();
         let node = NodeCast::from_ref(elem);
@@ -660,6 +667,7 @@ pub trait FormControl {
         }
     }
 
+    // https://html.spec.whatwg.org/multipage/#association-of-controls-and-forms:form-associated-element-10
     fn unbind_form_control_from_tree(&self) {
         let elem = self.to_element();
         let has_form_attr = elem.has_attribute(&atom!(form));
@@ -720,7 +728,7 @@ impl<'a> VirtualMethods for &'a HTMLFormElement {
                         .filter(|c| !c.root().is_in_same_home_subtree(*self))
                         .map(|c| c.clone()));
 
-        for control in to_reset.iter() {
+        for control in &*to_reset {
             let control = control.root();
             control.r().as_maybe_form_control()
                        .expect("Element must be a form control")

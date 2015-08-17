@@ -26,8 +26,8 @@ use net_traits::image::base::Image;
 use string_cache::Atom;
 use util::str::DOMString;
 
-use std::sync::Arc;
 use std::default::Default;
+use std::sync::Arc;
 
 #[dom_struct]
 pub struct HTMLObjectElement {

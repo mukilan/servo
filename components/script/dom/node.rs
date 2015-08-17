@@ -165,7 +165,7 @@ bitflags! {
         #[doc = "Specifies whether this node is focusable and whether it is supposed \
                  to be reachable with using sequential focus navigation."]
         const SEQUENTIALLY_FOCUSABLE = 0x400,
-        #[doc = "Specifies whether the parser has set an associated form owner for
+        #[doc = "Specifies whether the parser has set an associated form owner for \
                  this element. Only applicable for form-associatable elements."]
         const PARSER_ASSOCIATED_FORM_OWNER = 0x800,
     }
@@ -310,6 +310,16 @@ impl<'a> PrivateNodeHelpers for &'a Node {
     // https://dom.spec.whatwg.org/#node-is-removed
     fn node_removed(self, parent_in_doc: bool) {
         assert!(self.parent_node.get().is_none());
+
+        // Mark this node and its descendants as not in the document
+        // before invoking unbind_from_tree hook on them. This loop
+        // cannot be combined with the succeeding loop since some hooks
+        // may check the is_in_doc status of their children to perfom
+        // certain actions.
+        // e.g HTMLFormElement's unbind_from_tree calls reset_form_owner
+        // on the form control elements that are associated with it.
+        // reset_form_owner expects the form control nodes to have
+        // the correct "is in doc" status
         for node in self.traverse_preorder() {
             node.r().set_flag(IS_IN_DOC, false);
         }
@@ -2690,7 +2700,7 @@ impl<T> VecPreOrderInsertionHelper<T> for Vec<JS<T>>
     where T: NodeBase + Reflectable
 {
     fn insert_pre_order(&mut self, elem: &T, tree_root: &Node) {
-        if self.len() == 0 {
+        if self.is_empty() {
             self.push(JS::from_ref(elem));
             return;
         }

@@ -101,7 +101,7 @@
 
         testControl(function() {
           form1.id = ""
-            this.setAttribute("form", "");
+          this.setAttribute("form", "");
           form1.appendChild(this);
           assert_equals(this.form, null);
         }, "Control whose form attribute is an empty string has no form owner " +
@@ -146,7 +146,7 @@
 
         testControl(function() {
           var form3 = document.createElement("form");
-          form3.id =  "form3";
+          form3.id = "form3";
           placeholder.appendChild(form3);
           form3.appendChild(this);
           assert_equals(this.form, form3);
@@ -172,7 +172,7 @@
 
           form2.appendChild(this);
           assert_equals(this.form, form1);
-        }, "Moving the a control with form attribute within the document " +
+        }, "Moving a control with form attribute within the document " +
            "does not change the form owner");
 
         testControl(function() {
