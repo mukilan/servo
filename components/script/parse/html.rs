@@ -117,11 +117,6 @@ impl<'a> TreeSink for servohtmlparser::Sink {
         JS::from_rooted(&node)
     }
 
-    fn has_parent_node(&self, node: JS<Node>) -> bool {
-         node.root().GetParentNode().is_some()
-    }
-
-
     fn associate_with_form(&mut self, target: JS<Node>, form: JS<Node>) {
         let node = target.root();
         let form = form.root();
@@ -141,13 +136,17 @@ impl<'a> TreeSink for servohtmlparser::Sink {
 
     fn append_before_sibling(&mut self,
             sibling: JS<Node>,
-            new_node: NodeOrText<JS<Node>>) {
+            new_node: NodeOrText<JS<Node>>) -> Result<(), NodeOrText<JS<Node>>> {
+        // If there is no parent, return the node to the parser.
         let sibling = sibling.root();
-        let parent = sibling.GetParentNode()
-            .expect("append_before_sibling called on node without parent");
+        let parent = match sibling.GetParentNode() {
+            Some(p) => p,
+            None => return Err(new_node),
+        };
 
         let child = self.get_or_create(new_node);
         assert!(parent.InsertBefore(child.r(), Some(sibling.r())).is_ok());
+        Ok(())
     }
 
     fn parse_error(&mut self, msg: Cow<'static, str>) {

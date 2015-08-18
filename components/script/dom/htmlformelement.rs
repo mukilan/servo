@@ -38,7 +38,7 @@ use dom::htmlinputelement::{HTMLInputElement, HTMLInputElementHelpers};
 use dom::htmlbuttonelement::{HTMLButtonElement};
 use dom::htmltextareaelement::HTMLTextAreaElementHelpers;
 use dom::node::{Node, NodeHelpers, NodeTypeId, document_from_node, window_from_node};
-use dom::node::{VecPreOrderInsertionHelper, PARSER_ASSOCIATED_FORM_OWNER};
+use dom::node::{VecPreOrderInsertionHelper};
 use dom::virtualmethods::VirtualMethods;
 use hyper::method::Method;
 use hyper::header::ContentType;
@@ -432,18 +432,19 @@ impl<'a> HTMLFormElementHelpers for &'a HTMLFormElement {
     fn add_control<T: ?Sized + FormControl>(self, control: &T) {
         let elem = ElementCast::from_ref(self);
         let root = elem.get_root_element();
-        let root = NodeCast::from_ref(root.r());
 
         let mut controls = self.controls.borrow_mut();
-        controls.insert_pre_order(control.to_element(), root);
+        controls.insert_pre_order(control.to_element(), root.r());
     }
 
     fn remove_control<T: ?Sized + FormControl>(self, control: &T) {
         let control = control.to_element();
         let mut controls = self.controls.borrow_mut();
-        controls.iter().map(|c| c.root())
-                       .position(|c| c.r() == control)
-                       .map(|idx| controls.remove(idx));
+        let idx = controls.iter()
+                          .map(|c| c.root())
+                          .position(|c| c.r() == control)
+                          .expect("Form control is not present in the list");
+        controls.remove(idx);
     }
 }
 
@@ -571,13 +572,10 @@ pub trait FormControl {
     }
 
     // https://html.spec.whatwg.org/multipage/#create-an-element-for-the-token
-    // Part of step 4.
-    // '..suppress the running of the reset the form owner algorithm
-    // when the parser subsequently attempts to insert the element..'
+    // Step 4.
     fn set_form_owner_from_parser(&self, form: &HTMLFormElement) {
         let elem = self.to_element();
         let node = NodeCast::from_ref(elem);
-        node.set_flag(PARSER_ASSOCIATED_FORM_OWNER, true);
         form.add_control(self);
         self.set_form_owner(Some(form));
     }
@@ -655,16 +653,7 @@ pub trait FormControl {
         let elem = self.to_element();
         let node = NodeCast::from_ref(elem);
 
-        // https://html.spec.whatwg.org/multipage/#create-an-element-for-the-token
-        // Part of step 4.
-        // '..suppress the running of the reset the form owner algorithm
-        // when the parser subsequently attempts to insert the element..'
-        let must_skip_reset = node.get_flag(PARSER_ASSOCIATED_FORM_OWNER);
-        node.set_flag(PARSER_ASSOCIATED_FORM_OWNER, false);
-
-        if !must_skip_reset {
-            self.after_set_form_attr();
-        }
+        self.after_set_form_attr();
     }
 
     // https://html.spec.whatwg.org/multipage/#association-of-controls-and-forms:form-associated-element-10

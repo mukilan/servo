@@ -453,7 +453,7 @@ impl<'a> DocumentHelpers<'a> for &'a Document {
         {
             let mut idmap = self.idmap.borrow_mut();
             let mut elements = idmap.entry(id.clone()).or_insert(Vec::new());
-            elements.insert_pre_order(element, NodeCast::from_ref(root.r()));
+            elements.insert_pre_order(element, root.r());
         }
 
         self.reset_form_owner_for_listeners(&id);

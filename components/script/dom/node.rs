@@ -16,9 +16,10 @@ use dom::bindings::codegen::Bindings::NodeBinding::{NodeConstants, NodeMethods};
 use dom::bindings::codegen::Bindings::NodeListBinding::NodeListMethods;
 use dom::bindings::codegen::Bindings::ProcessingInstructionBinding::ProcessingInstructionMethods;
 use dom::bindings::codegen::InheritTypes::{CharacterDataCast, DocumentCast, DocumentDerived, DocumentTypeCast};
-use dom::bindings::codegen::InheritTypes::{ElementCast, NodeCast, ElementDerived, EventTargetCast};
+use dom::bindings::codegen::InheritTypes::{ElementBase, ElementCast, ElementDerived, EventTargetCast};
 use dom::bindings::codegen::InheritTypes::{HTMLLegendElementDerived, HTMLFieldSetElementDerived};
-use dom::bindings::codegen::InheritTypes::{HTMLOptGroupElementDerived, NodeBase, NodeDerived};
+use dom::bindings::codegen::InheritTypes::{HTMLOptGroupElementDerived};
+use dom::bindings::codegen::InheritTypes::{NodeBase, NodeCast, NodeDerived};
 use dom::bindings::codegen::InheritTypes::{ProcessingInstructionCast, TextCast, TextDerived};
 use dom::bindings::codegen::UnionTypes::NodeOrString;
 use dom::bindings::conversions;
@@ -165,9 +166,6 @@ bitflags! {
         #[doc = "Specifies whether this node is focusable and whether it is supposed \
                  to be reachable with using sequential focus navigation."]
         const SEQUENTIALLY_FOCUSABLE = 0x400,
-        #[doc = "Specifies whether the parser has set an associated form owner for \
-                 this element. Only applicable for form-associatable elements."]
-        const PARSER_ASSOCIATED_FORM_OWNER = 0x800,
     }
 }
 
@@ -2693,18 +2691,21 @@ pub enum NodeDamage {
 /// Helper trait to insert an element into vector whose elements
 /// are maintained in tree order
 pub trait VecPreOrderInsertionHelper<T> {
-    fn insert_pre_order(&mut self, elem: &T, tree_root: &Node);
+    fn insert_pre_order(&mut self, elem: &T, tree_root: &Element);
 }
 
 impl<T> VecPreOrderInsertionHelper<T> for Vec<JS<T>>
-    where T: NodeBase + Reflectable
+    where T: NodeBase + ElementBase + Reflectable
 {
-    fn insert_pre_order(&mut self, elem: &T, tree_root: &Node) {
+    fn insert_pre_order(&mut self, elem: &T, tree_root: &Element) {
+        assert!(tree_root.is_in_same_home_subtree(elem));
+
         if self.is_empty() {
             self.push(JS::from_ref(elem));
             return;
         }
 
+        let tree_root = NodeCast::from_ref(tree_root);
         let elem_node = NodeCast::from_ref(elem);
         let mut head: usize = 0;
         for node in tree_root.traverse_preorder() {
