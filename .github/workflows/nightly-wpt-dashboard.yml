@@ -35,10 +35,14 @@ jobs:
           python3 ./mach bootstrap-gstreamer
       - name: Run tests
         run: |
+          export CURRENT_DATE=$(date +"%d-%m-%Y")
+          echo $CURRENT_DATE
+          echo "CURRENT_DATE=$CURRENT_DATE" >> $GITHUB_ENV
           python3 ./mach test-wpt --release ${WPT_TESTS} \
             --release --log-wptreport=wpt-report.json \
             --processes $(nproc) --timeout-multiplier 2 \
             --always-succeed
+          node etc/ci/process-internal-wpt-results.js wpt-report.json > run-${CURRENT_DATE}.json
       - name: Archive logs
         uses: actions/upload-artifact@v3
         #if: ${{ failure() }}
@@ -46,3 +50,4 @@ jobs:
           name: nightly-wpt-results
           path: |
             wpt-report.json
+            run-${CURRENT_DATE}.json
