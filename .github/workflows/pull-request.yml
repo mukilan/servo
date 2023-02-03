@@ -1,5 +1,6 @@
 name: Pull request
 on:
+  workflow_dispatch: 
   pull_request:
     branches: ["**"]
 
@@ -22,8 +23,8 @@ jobs:
       - name: Tidy
         run: python3 ./mach test-tidy --no-progress --all
       - name: Release build
-        run: python3 ./mach build --release
+        run: python3 ./mach build --dev
       - name: Unit tests
-        run: python3 ./mach test-unit --release
+        run: python3 ./mach test-unit --dev
       - name: Lockfile check
         run: ./etc/ci/lockfile_changed.sh
