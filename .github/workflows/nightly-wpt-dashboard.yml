@@ -48,7 +48,6 @@ jobs:
           path: wpt-dashboard
       - name: Process new test result
         run: |
-          cd wpt-dashboard
           export CURRENT_DATE=$(date +"%Y-%m-%d")
           echo $CURRENT_DATE
           echo "CURRENT_DATE=$CURRENT_DATE" >> $GITHUB_ENV
@@ -58,6 +57,7 @@ jobs:
           git add site/scores.json
           git commit -m "Adding results for ${CURRENT_DATE}"
           git push
+        working-directory: wpt-dashboard
       - name: Archive logs
         uses: actions/upload-artifact@v3
         #if: ${{ failure() }}
