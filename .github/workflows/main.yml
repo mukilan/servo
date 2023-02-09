@@ -32,7 +32,8 @@ jobs:
       - name: Bootstrap
         run: |
           python3 -m pip install --upgrade pip virtualenv
-          brew install "https://github.com/Homebrew/homebrew-core/blob/49a8667f0c1a6579fe887bc0fa1c0ce682eb01c8/Formula/gstreamer.rb"
+          brew tap-new "servo/gstreamer-brew"
+          brew create --tap "servo/gstreamer-brew" "https://github.com/Homebrew/homebrew-core/blob/49a8667f0c1a6579fe887bc0fa1c0ce682eb01c8/Formula/gstreamer.rb"
           brew bundle install --verbose --no-upgrade --file=etc/taskcluster/macos/Brewfile
           brew bundle install --verbose --no-upgrade --file=etc/taskcluster/macos/Brewfile-build
           rm -rf /usr/local/etc/openssl
