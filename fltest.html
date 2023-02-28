@@ -1,0 +1,38 @@
+<html>
+  <head>
+    <script>
+    onload = () => {
+      const log = document.getElementById("log");
+
+      const canvas = document.getElementById("js-canvas");
+      canvas.width = 650;
+      canvas.height = 75;
+      const ctx = canvas.getContext("2d");
+
+      const oxygenFontFace = new FontFace(
+        "FontFamily Oxygen",
+        "url(https://fonts.gstatic.com/s/oxygen/v5/qBSyz106i5ud7wkBU-FrPevvDin1pK8aKteLpeZ5c0A.woff2)"
+      );
+      document.fonts.add(oxygenFontFace);
+      log.textContent += `Oxygen status: ${oxygenFontFace.status}\n`;
+
+      document.fonts.ready.then(function () {
+        log.textContent += `\nFontFaces in document: ${document.fonts.size}.\n`;
+        const fonts = document.fonts.values();
+        fonts[Symbol.iterator] = () => fonts
+        for (const fontFace of fonts) {
+          log.textContent += "FontFace:\n";
+          for (const property in fontFace) {
+            log.textContent += `  ${property}: ${fontFace[property]}\n`;
+          }
+        }
+      });
+    }
+    </script>
+  </head>
+  <body>
+  <canvas id="js-canvas"></canvas>
+  <textarea id="log" rows="25" cols="100"></textarea>
+  </body>
+</html>
+
