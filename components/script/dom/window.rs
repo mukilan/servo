@@ -1980,6 +1980,15 @@ impl Window {
             );
         }
 
+        let document = self.Document();
+        let pending_web_fonts = self.layout.borrow().waiting_for_web_fonts_to_load();
+        let font_face_set = document.Fonts();
+        let is_ready_state_complete = document.ReadyState() == DocumentReadyState::Complete;
+
+        if !pending_web_fonts && is_ready_state_complete {
+            font_face_set.fulfill_ready_promise_if_needed();
+        }
+
         // If writing a screenshot, check if the script has reached a state
         // where it's safe to write the image. This means that:
         // 1) The reflow is for display (otherwise it could be a query)
@@ -1989,7 +1998,6 @@ impl Window {
         // that this pipeline is ready to write the image (from the script thread
         // perspective at least).
         if self.prepare_for_screenshot && for_display {
-            let document = self.Document();
 
             // Checks if the html element has reftest-wait attribute present.
             // See http://testthewebforward.org/docs/reftests.html
@@ -1998,9 +2006,7 @@ impl Window {
                 elem.has_class(&atom!("reftest-wait"), CaseSensitivity::CaseSensitive)
             });
 
-            let pending_web_fonts = self.layout.borrow().waiting_for_web_fonts_to_load();
             let has_sent_idle_message = self.has_sent_idle_message.get();
-            let is_ready_state_complete = document.ReadyState() == DocumentReadyState::Complete;
             let pending_images = !self.pending_layout_images.borrow().is_empty();
 
             if !has_sent_idle_message &&
