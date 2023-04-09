@@ -594,7 +594,10 @@ class PackageCommands(CommandBase):
     @CommandArgument('--secret-from-environment',
                      action='store_true',
                      help='Retrieve the appropriate secrets from the environment.')
-    def upload_nightly(self, platform, secret_from_environment):
+    @CommandArgument('--github-release-id',
+                     default=None,
+                     help='The github release to upload the nightly builds.')
+    def upload_nightly(self, platform, secret_from_environment, github_release_id):
         import boto3
 
         def get_s3_secret():
@@ -612,7 +615,7 @@ class PackageCommands(CommandBase):
                 path.basename(package)
             )
 
-        def upload_to_s3(platform, package, timestamp):
+        def upload_to_s3_and_github(platform, package, timestamp):
             (aws_access_key, aws_secret_access_key) = get_s3_secret()
             s3 = boto3.client(
                 's3',
@@ -673,6 +676,22 @@ class PackageCommands(CommandBase):
                     }
                 }
             )
+
+            if github_release_id:
+                from github import Github
+                g = Github(os.environ['NIGHTLY_REPO_TOKEN'])
+                nightly_repo = g.get_repo(os.environ['NIGHTLY_REPO'])
+                release = nightly_repo.get_release(int(github_release_id))
+                if '2020' in platform:
+                    asset_name = f'servo-latest-layout2020.{extension}'
+                else:
+                    asset_name = f'servo-latest.{extension}'
+                sha_name = f'{asset_name}.sha256'
+                release.upload_asset(package, name=asset_name)
+                release.upload_asset_from_memory(
+                    package_hash_fileobj,
+                    package_hash_fileobj.getbuffer().nbytes,
+                    name=sha_name)
 
         def update_maven(directory):
             (aws_access_key, aws_secret_access_key) = get_s3_secret()
@@ -763,7 +782,7 @@ class PackageCommands(CommandBase):
                     package
                 ), file=sys.stderr)
                 return 1
-            upload_to_s3(platform, package, timestamp)
+            upload_to_s3_and_github(platform, package, timestamp)
 
         if platform == 'maven':
             for package in PACKAGES[platform]:
