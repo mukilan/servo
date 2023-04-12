@@ -10,6 +10,8 @@
 from __future__ import absolute_import, print_function, unicode_literals
 
 from datetime import datetime
+from github import Github
+
 import base64
 import hashlib
 import io
@@ -596,6 +598,7 @@ class PackageCommands(CommandBase):
                      help='Retrieve the appropriate secrets from the environment.')
     @CommandArgument('--github-release-id',
                      default=None,
+                     type=int,
                      help='The github release to upload the nightly builds.')
     def upload_nightly(self, platform, secret_from_environment, github_release_id):
         import boto3
@@ -615,7 +618,24 @@ class PackageCommands(CommandBase):
                 path.basename(package)
             )
 
-        def upload_to_s3_and_github(platform, package, timestamp):
+        def upload_to_github_release(platform, package, package_hash_fileobj):
+            if not github_release_id:
+                return
+            extension = path.basename(package).partition('.')[2]
+            g = Github(os.environ['NIGHTLY_REPO_TOKEN'])
+            nightly_repo = g.get_repo(os.environ['NIGHTLY_REPO'])
+            release = nightly_repo.get_release(github_release_id)
+            if '2020' in platform:
+                asset_name = f'servo-latest-layout-2020.{extension}'
+            else:
+                asset_name = f'servo-latest.{extension}'
+            release.upload_asset(package, name=asset_name)
+            release.upload_asset_from_memory(
+                package_hash_fileobj,
+                package_hash_fileobj.getbuffer().nbytes,
+                name=f'{asset_name}.sha256')
+
+        def upload_to_s3(platform, package, package_hash_fileobj, timestamp):
             (aws_access_key, aws_secret_access_key) = get_s3_secret()
             s3 = boto3.client(
                 's3',
@@ -638,17 +658,6 @@ class PackageCommands(CommandBase):
             extension = path.basename(package).partition('.')[2]
             latest_upload_key = '{}/servo-latest.{}'.format(nightly_dir, extension)
 
-            # Compute the hash
-            SHA_BUF_SIZE = 1048576  # read in 1 MiB chunks
-            sha256_digest = hashlib.sha256()
-            with open(package, 'rb') as package_file:
-                while True:
-                    data = package_file.read(SHA_BUF_SIZE)
-                    if not data:
-                        break
-                    sha256_digest.update(data)
-            package_hash = sha256_digest.hexdigest()
-            package_hash_fileobj = io.BytesIO(package_hash.encode('utf-8'))
             latest_hash_upload_key = f'{latest_upload_key}.sha256'
 
             s3.upload_file(package, BUCKET, package_upload_key)
@@ -676,22 +685,6 @@ class PackageCommands(CommandBase):
                     }
                 }
             )
-
-            if github_release_id:
-                from github import Github
-                g = Github(os.environ['NIGHTLY_REPO_TOKEN'])
-                nightly_repo = g.get_repo(os.environ['NIGHTLY_REPO'])
-                release = nightly_repo.get_release(int(github_release_id))
-                if '2020' in platform:
-                    asset_name = f'servo-latest-layout2020.{extension}'
-                else:
-                    asset_name = f'servo-latest.{extension}'
-                sha_name = f'{asset_name}.sha256'
-                release.upload_asset(package, name=asset_name)
-                release.upload_asset_from_memory(
-                    package_hash_fileobj,
-                    package_hash_fileobj.getbuffer().nbytes,
-                    name=sha_name)
 
         def update_maven(directory):
             (aws_access_key, aws_secret_access_key) = get_s3_secret()
@@ -782,7 +775,21 @@ class PackageCommands(CommandBase):
                     package
                 ), file=sys.stderr)
                 return 1
-            upload_to_s3_and_github(platform, package, timestamp)
+
+            # Compute the hash
+            SHA_BUF_SIZE = 1048576  # read in 1 MiB chunks
+            sha256_digest = hashlib.sha256()
+            with open(package, 'rb') as package_file:
+                while True:
+                    data = package_file.read(SHA_BUF_SIZE)
+                    if not data:
+                        break
+                    sha256_digest.update(data)
+            package_hash = sha256_digest.hexdigest()
+            package_hash_fileobj = io.BytesIO(package_hash.encode('utf-8'))
+
+            # upload_to_s3(platform, package, package_hash_fileobj, timestamp)
+            upload_to_github_release(platform, package, package_hash_fileobj)
 
         if platform == 'maven':
             for package in PACKAGES[platform]:
