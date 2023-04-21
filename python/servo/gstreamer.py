@@ -125,7 +125,7 @@ def macos_lib_dir():
     # homebrew use /opt/homebrew on macos ARM, use /usr/local on Intel
     if platform.machine() == 'arm64':
         return os.path.join('/', 'opt', 'homebrew', 'lib')
-    return os.path.join('/', 'usr', 'local', 'lib')
+    return '/Library/Frameworks/GStreamer.framework/Versions/Current/lib'
 
 
 def macos_dylibs():
