@@ -58,10 +58,10 @@ jobs:
       #       Homebrew's Python 3.10 formula (servo/rust-mozjs#559) is fixed
       - name: Install GStreamer
         run: |
-          wget 'https://gstreamer.freedesktop.org/data/pkg/osx/1.20.6/gstreamer-1.0-1.20.6-universal.pkg'
-          wget 'https://gstreamer.freedesktop.org/data/pkg/osx/1.20.6/gstreamer-1.0-devel-1.20.6-universal.pkg'
-          sudo installer -pkg 'gstreamer-1.0-1.20.6-universal.pkg' -target /
-          sudo installer -pkg 'gstreamer-1.0-devel-1.20.6-universal.pkg' -target /
+          wget 'https://gstreamer.freedesktop.org/data/pkg/osx/1.22.2/gstreamer-1.0-1.22.2-universal.pkg'
+          wget 'https://gstreamer.freedesktop.org/data/pkg/osx/1.22.2/gstreamer-1.0-devel-1.22.2-universal.pkg'
+          sudo installer -pkg 'gstreamer-1.0-1.22.2-universal.pkg' -target /
+          sudo installer -pkg 'gstreamer-1.0-devel-1.22.2-universal.pkg' -target /
           ls -l '/Library/Frameworks/GStreamer.framework/Versions/Current/'
       - name: Select Python 3.9
         run: |
@@ -90,7 +90,7 @@ jobs:
           # export PATH="$GSTREAMER_BASE/bin:$PATH"
           pkg-config --atleast-version=1.16 gstreamer-1.0
           echo "GST = $?"
-          export PKG_CONFIG="$GSTREAMER_BASE/bin/pkg-config"
+          #export PKG_CONFIG="$GSTREAMER_BASE/bin/pkg-config"
           python3 ./mach build --release --with-${{ env.LAYOUT }}
       - name: Smoketest
         run: python3 ./mach smoketest
