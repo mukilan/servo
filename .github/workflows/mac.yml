@@ -88,7 +88,9 @@ jobs:
           export PKG_CONFIG_PATH="${GSTREAMER_BASE}/lib/pkgconfig/:$PKG_CONFIG_PATH"
           # use gstreamer's pkg-config
           # export PATH="$GSTREAMER_BASE/bin:$PATH"
-          echo "GST=$(pkg-config --atleast-version=1.16 gstreamer-1.0)"
+          pkg-config --atleast-version=1.16 gstreamer-1.0
+          echo "GST = $?"
+          export PKG_CONFIG="$GSTREAMER_BASE/bin/pkg-config"
           python3 ./mach build --release --with-${{ env.LAYOUT }}
       - name: Smoketest
         run: python3 ./mach smoketest
