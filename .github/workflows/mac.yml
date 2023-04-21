@@ -88,6 +88,8 @@ jobs:
           python3 ./mach build --release --with-${{ env.LAYOUT }}
           ls -la target/release
           otool -L target/release/servo
+          echo "#####"
+          otool -l target/release/servo
       - name: Smoketest
         run: |
           export PKG_CONFIG_PATH="${GSTREAMER_BASE}/lib/pkgconfig/"
