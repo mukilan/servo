@@ -50,20 +50,6 @@ jobs:
     name: Build
     runs-on: macos-12
     steps:
-      - name: examine old artifact
-        run: |
-          echo Downlaod
-          wget 'https://github.com/servo/servo/suites/12318166532/artifacts/653371344' -O artifact.zip
-          echo Extract
-          unzip artifact.zip -d artifact
-          cd artifact
-          echo Brew
-          brew install gnu-tar
-          echo Gtar
-          gtar -xzf artifact.tar.gz
-          ls -l
-          otool -L target/release/servo
-          exit 1
       - uses: actions/checkout@v3
         with:
           fetch-depth: 2
