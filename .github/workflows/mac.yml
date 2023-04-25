@@ -83,6 +83,7 @@ jobs:
         run: |
           export OPENSSL_INCLUDE_DIR="$(brew --prefix openssl@1.1)/include"
           export PKG_CONFIG_PATH="${GSTREAMER_BASE}/lib/pkgconfig/"
+          export PATH="${GSTREAMER_BASE}/bin/:$PATH"
           python3 ./mach build --release --with-${{ env.LAYOUT }}
           # install_name_tool  -add_rpath @executable_path target/release/servo
           # ls -la target/release
