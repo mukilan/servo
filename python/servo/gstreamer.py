@@ -11,6 +11,8 @@ import os
 import sys
 import platform
 
+OSX_GSTREAMER_ROOT = "/Library/Frameworks/GStreamer.framework/Versions/1.0"
+
 GSTREAMER_DYLIBS = [
     # gstreamer
     "gstbase",
@@ -121,13 +123,6 @@ def windows_plugins(uwp):
     return [f"{lib}.dll" for lib in libs]
 
 
-def macos_lib_dir():
-    # homebrew use /opt/homebrew on macos ARM, use /usr/local on Intel
-    if platform.machine() == 'arm64':
-        return os.path.join('/', 'opt', 'homebrew', 'lib')
-    return os.path.join('/', 'usr', 'local', 'lib')
-
-
 def macos_dylibs():
     dylibs = [
         *[f"lib{lib}-1.0.0.dylib" for lib in GSTREAMER_DYLIBS],
@@ -148,7 +143,7 @@ def macos_plugins():
     ]
 
     def plugin_path(plugin):
-        return os.path.join(macos_lib_dir(), 'gstreamer-1.0', f"lib{plugin}.dylib")
+        return os.path.join(OSX_GSTREAMER_ROOT, 'lib', 'gstreamer-1.0', f"lib{plugin}.dylib")
 
     # These plugins depend on the particular version of GStreamer that is installed
     # on the system that is building servo.

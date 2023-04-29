@@ -552,29 +552,32 @@ class CommandBase(object):
         if "x86_64" not in effective_target or "android" in effective_target:
             # We don't build gstreamer for non-x86_64 / android yet
             return False
-        if is_linux() or is_windows():
-            if path.isdir(gstreamer_root(effective_target, env, self.get_top_dir())):
-                return True
-            else:
+        gst_root_exists = path.isdir(gstreamer_root(effective_target, env, self.get_top_dir()))
+        if gst_root_exists:
+            if is_linux() or is_windows():
                 raise Exception("Your system's gstreamer libraries are out of date \
 (we need at least 1.16). Please run ./mach bootstrap-gstreamer")
-        else:
-            raise Exception("Your system's gstreamer libraries are out of date \
-(we need at least 1.16). If you're unable to \
-install them, let us know by filing a bug!")
-        return False
+            else:
+                raise Exception("Your system's gstreamer libraries are out of date \
+    (we need at least 1.21). If you're unable to \
+    install them, let us know by filing a bug!")
+        return True
 
     def set_run_env(self, android=False):
         """Some commands, like test-wpt, don't use a full build env,
            but may still need dynamic search paths. This command sets that up"""
-        if not android and self.needs_gstreamer_env(None, os.environ):
+        needs_gstreamer = self.needs_gstreamer_env(None, os.environ)
+        print('XXX', needs_gstreamer)
+        if not android and needs_gstreamer:
             gstpath = gstreamer_root(host_triple(), os.environ, self.get_top_dir())
+            print('GOT gst path', gstpath)
             if gstpath is None:
                 return
             os.environ["LD_LIBRARY_PATH"] = path.join(gstpath, "lib")
             os.environ["GST_PLUGIN_SYSTEM_PATH"] = path.join(gstpath, "lib", "gstreamer-1.0")
             os.environ["PKG_CONFIG_PATH"] = path.join(gstpath, "lib", "pkgconfig")
             os.environ["GST_PLUGIN_SCANNER"] = path.join(gstpath, "libexec", "gstreamer-1.0", "gst-plugin-scanner")
+            print("SET environment")
 
     def msvc_package_dir(self, package):
         return path.join(self.context.sharedir, "msvc-dependencies", package, msvc_deps[package])
@@ -660,14 +663,16 @@ install them, let us know by filing a bug!")
             env["HARFBUZZ_SYS_NO_PKG_CONFIG"] = "true"
 
         if is_build and self.needs_gstreamer_env(target or host_triple(), env, uwp, features):
-            gstpath = gstreamer_root(target or host_triple(), env, self.get_top_dir())
-            extra_path += [path.join(gstpath, "bin")]
-            libpath = path.join(gstpath, "lib")
+            gst_root = gstreamer_root(target or host_triple(), env, self.get_top_dir())
+            bin_path = path.join(gst_root, "bin")
+            lib_path = path.join(gst_root, "lib")
+            pkg_config_path = path.join(lib_path, "pkgconfig")
             # we append in the reverse order so that system gstreamer libraries
             # do not get precedence
-            extra_path = [libpath] + extra_path
-            extra_lib = [libpath] + extra_lib
-            append_to_path_env(path.join(libpath, "pkgconfig"), env, "PKG_CONFIG_PATH")
+            extra_lib = [lib_path] + extra_lib
+            env["OPENSSL_INCLUDE_DIR"] = path.join(gstpath, "Headers")
+            prepend_to_path_env(bin_path, env, "PATH")
+            append_to_path_env(pkg_config_path, env, "PKG_CONFIG_PATH")
 
         if is_linux():
             distrib, version, _ = distro.linux_distribution()

@@ -17,6 +17,8 @@ hdiutil attach ${1}
 pushd /Volumes/Servo/Servo.app/Contents/MacOS
 ls -l
 
+otool -L servo
+otool -l servo
 # Load a page that closes immediately after loading.
 c='data:text/html,<script>onload=()=>{console.log("success");close()}</script>'
 ./servo --headless ${c} | tee /tmp/out

@@ -625,13 +625,19 @@ class MachCommands(CommandBase):
                     status = 1
 
             elif sys.platform == "darwin":
-                servo_exe_dir = os.path.dirname(
-                    self.get_binary_path(release, dev, target=target, simpleservo=libsimpleservo)
-                )
-                assert os.path.exists(servo_exe_dir)
+                servo_path =  self.get_binary_path(release, dev, target=target, simpleservo=libsimpleservo)
+                servo_bin_dir = os.path.dirname(servo_path)
+                assert os.path.exists(servo_bin_dir)
 
-                if has_media_stack and not package_gstreamer_dylibs(servo_exe_dir):
+                if has_media_stack and not package_gstreamer_dylibs(servo_bin_dir):
                     return 1
+            
+                gst_root = gstreamer_root(target, env)
+                # On Mac we use the relocatable dylibs from offical gstreamer
+                # .pkg distribution. We need to add LC_RPATH to the servo binary
+                # to allow the dynamic linker to be able to locate these dylibs
+                # See `man dyld` for more info
+                check_call(["install_name_tool", "-add_rpath", f'{gst_root}/lib/', servo_path])
 
                 # On the Mac, set a lovely icon. This makes it easier to pick out the Servo binary in tools
                 # like Instruments.app.
@@ -794,13 +800,17 @@ def angle_root(target, nuget_env):
 
 def package_gstreamer_dylibs(servo_exe_dir):
     missing = []
-    gst_dylibs = macos_dylibs() + macos_plugins()
+    gst_dylibs = macos_plugins()
+    plugin_dir = path.join(servo_exe_dir, "lib")
+    if os.path.exists(plugin_dir):
+        shutil.rmtree(plugin_dir)
+    os.makedirs(plugin_dir)
     for gst_lib in gst_dylibs:
         try:
-            dest_path = os.path.join(servo_exe_dir, os.path.basename(gst_lib))
+            dest_path = os.path.join(plugin_dir, os.path.basename(gst_lib))
             if os.path.isfile(dest_path):
                 os.remove(dest_path)
-            shutil.copy(gst_lib, servo_exe_dir)
+            shutil.copy(gst_lib, plugin_dir)
         except Exception as e:
             print(e)
             missing += [str(gst_lib)]
