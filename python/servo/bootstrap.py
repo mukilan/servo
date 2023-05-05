@@ -16,11 +16,20 @@ from zipfile import BadZipfile
 
 import servo.packages as packages
 from servo.util import extract, download_file, host_triple
-
+from servo.gstreamer import OSX_GSTREAMER_ROOT
 
 def check_gstreamer_lib():
-    return subprocess.call(["pkg-config", "--atleast-version=1.16", "gstreamer-1.0"],
+    min_gst_version = '1.21' if 'darwin' in host_triple() else '1.16'
+    has_gst = subprocess.call(["pkg-config", f"--atleast-version=${min_gst_version}", "gstreamer-1.0"],
                            stdout=PIPE, stderr=PIPE) == 0
+
+    if has_gst and ('darwin' in host_triple()):
+        gst_root = subprocess.check_output(["pkg-config", "--variable=libdir", "gstreamer-1.0"])
+        # Only official GStreamer is suppored on Mac. Homebrew versions
+        # don't build all needed plugins
+        return gst_root.startswith(bytes(OSX_GSTREAMER_ROOT, 'utf-8'))
+    else:
+        return has_gst
 
 
 def run_as_root(command, force=False):

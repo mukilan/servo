@@ -40,7 +40,7 @@ from servo.command_base import (
     is_macosx,
     is_windows,
 )
-from servo.gstreamer import macos_dylibs, macos_plugins
+from servo.gstreamer import macos_plugins, OSX_GSTREAMER_ROOT
 from servo.util import delete
 
 # Note: mako cannot be imported at the top level because it breaks mach bootstrap
@@ -126,11 +126,14 @@ def is_relocatable_library(lib):
 
 def change_non_system_libraries_path(libraries, relative_path, binary):
     for lib in libraries:
-        if is_system_library(lib) or is_relocatable_library(lib):
+        full_path = lib
+        if is_system_library(lib): # or is_relocatable_library(lib):
             continue
+        if is_relocatable_library(lib):
+            full_path = resolve_rpath(lib)
         if lib.startswith("/Library/Frameworks/GStreamer.frameworks"):
             raise Exception("Why " + lib)
-        new_path = path.join(relative_path, path.basename(lib))
+        new_path = path.join(relative_path, path.basename(full_path))
         print("Changing library", lib, "to", new_path)
         install_name_tool(lib, new_path, binary)
 
@@ -139,9 +142,10 @@ def resolve_rpath(lib, rpath_root):
         return lib
 
     rpaths = [ '', '../', 'gstreamer-1.0/' ]
+    trials = []
     for rpath in rpaths:
         full_path = rpath_root + lib.replace('@rpath/', rpath)
-        # print("Trying rpath", full_path)
+        trials.append(full_path)
         if path.exists(full_path):
             return path.normpath(full_path)
 
@@ -152,8 +156,9 @@ def copy_dependencies(binary_path, lib_path, gst_root):
 
     # Update binary libraries
     binary_dependencies = set(otool(binary_path))
-    binary_dependencies = binary_dependencies.union(macos_plugins())
-    #change_non_system_libraries_path(binary_dependencies, relative_path, binary_path)
+    plugins_path = [p.replace(OSX_GSTREAMER_ROOT + 'lib', '@rpath') for p in macos_plugins()]
+    binary_dependencies = binary_dependencies.union(plugins_path)
+    change_non_system_libraries_path(binary_dependencies, relative_path, binary_path)
 
     # Update dependencies libraries
     need_checked = binary_dependencies
@@ -166,11 +171,11 @@ def copy_dependencies(binary_path, lib_path, gst_root):
             # No need to check these for their dylibs
             if is_system_library(f):
                 continue
-            src = resolve_rpath(f, rpath_root)
+            full_path = resolve_rpath(f, gst_root)
             need_relinked = set(otool(src))
-            new_path = path.join(lib_path, path.basename(src))
+            new_path = path.join(lib_path, path.basename(full_path))
             if not path.exists(new_path):
-                shutil.copyfile(src, new_path)
+                shutil.copyfile(full_path, new_path)
             change_non_system_libraries_path(need_relinked, relative_path, new_path)
             need_checked.update(need_relinked)
         checked.update(checking)
@@ -207,7 +212,7 @@ def change_prefs(resources_path, platform, vr=False):
 
 
 def recurse_deps(cur, acc):
-    if "libgio" in cur:
+    if "gio" in cur:
         print('Found', acc)
         return
     if cur.startswith('/usr/lib') or cur.startswith('/System'):
@@ -228,7 +233,7 @@ class PackageCommands(CommandBase):
              category='package')
     def show_deps(self):
         binary = path.join('target', 'release', 'servo')
-        deps = otool(binary)
+        deps = macos_plugins() 
 
         for dep in deps:
             recurse_deps(dep, [dep])
@@ -388,8 +393,8 @@ class PackageCommands(CommandBase):
 
             print("Finding dylibs and relinking")
             dmg_binary = path.join(content_dir, "servo")
-            gst_root =  OSX_GSTREAMER_ROOT
-            copy_dependencies(dmg_binary, lib_dir, rpath_root)
+            gst_lib =  path.join(OSX_GSTREAMER_ROOT, 'lib', '')
+            copy_dependencies(dmg_binary, lib_dir, gst_lib)
 
             print("Adding version to Credits.rtf")
             version_command = [binary_path, '--version']
@@ -400,7 +405,7 @@ class PackageCommands(CommandBase):
             version = "Nightly version: " + version
 
             print("Fixing up rpath of binary at", dmg_binary)
-            subprocess.check_call(["install_name_tool", "-delete_rpath", rpath_root, dmg_binary])
+            subprocess.check_call(["install_name_tool", "-delete_rpath", gst_lib, dmg_binary])
             subprocess.check_call(["install_name_tool", "-add_rpath", "@executable_path/lib/", dmg_binary])
 
             import mako.template
@@ -451,7 +456,7 @@ class PackageCommands(CommandBase):
             # Note that in the context of Homebrew, libexec is reserved for private use by the formula
             # and therefore is not symlinked into HOMEBREW_PREFIX.
             os.makedirs(path.join(dir_to_brew, 'libexec'))
-            copy_dependencies(path.join(dir_to_brew, 'bin', 'servo'), path.join(dir_to_brew, 'libexec'), rpath_root)
+            copy_dependencies(path.join(dir_to_brew, 'bin', 'servo'), path.join(dir_to_brew, 'libexec'), gst_lib)
             archive_deterministically(dir_to_brew, tar_path, prepend_path='servo/')
             delete(dir_to_brew)
             print("Packaged Servo into " + tar_path)
