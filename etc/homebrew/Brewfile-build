@@ -1,4 +1,3 @@
 # Build dependencies (that are not also runtime dependencies)
 
 # For sccache
-brew "openssl@1.1"

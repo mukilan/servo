@@ -67,8 +67,6 @@ jobs:
         run: |
           python3 -m pip install --upgrade pip virtualenv
           bash etc/install_macos_gstreamer.sh
-          brew bundle install --verbose --no-upgrade --file=etc/homebrew/Brewfile
-          brew bundle install --verbose --no-upgrade --file=etc/homebrew/Brewfile-build
           brew install gnu-tar
       - name: Release build
         run: |

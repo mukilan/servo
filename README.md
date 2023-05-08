@@ -59,8 +59,6 @@ NOTE: run these steps after you've cloned the project locally.
 ``` sh
 cd servo 
 bash etc/install_macos_gstreamer.sh
-brew bundle install --file=etc/homebrew/Brewfile
-brew bundle install --file=etc/homebrew/Brewfile-build
 pip install virtualenv
 ```
 
