@@ -625,7 +625,7 @@ class MachCommands(CommandBase):
                     status = 1
 
             elif sys.platform == "darwin":
-                servo_path =  self.get_binary_path(release, dev, target=target, simpleservo=libsimpleservo)
+                servo_path = self.get_binary_path(release, dev, target=target, simpleservo=libsimpleservo)
                 servo_bin_dir = os.path.dirname(servo_path)
                 assert os.path.exists(servo_bin_dir)
 
@@ -638,7 +638,7 @@ class MachCommands(CommandBase):
                 # .pkg distribution. We need to add LC_RPATH to the servo binary
                 # to allow the dynamic linker to be able to locate these dylibs
                 # See `man dyld` for more info
-                check_call(["install_name_tool", "-add_rpath", "@executable_path/lib/", servo_path])
+                add_rpath_to_binary(servo_path, "@executable_path/lib/")
 
                 # On the Mac, set a lovely icon. This makes it easier to pick out the Servo binary in tools
                 # like Instruments.app.
@@ -811,12 +811,20 @@ def listfiles(directory):
             if path.isfile(path.join(directory, f))]
 
 
-def install_name_tool(old, new, binary):
+def install_name_tool(binary, *args):
     try:
-        subprocess.check_call(['install_name_tool', '-change', old, '@executable_path/' + new, binary])
+        subprocess.check_call(['install_name_tool', *args, binary])
     except subprocess.CalledProcessError as e:
         print("install_name_tool exited with return value %d" % e.returncode)
 
+def change_link_name(binary, old, new):
+        install_name_tool(binary, '-change', old, f"@executable_path/{new}")
+
+def add_rpath_to_binary(binary, relative_path):
+        install_name_tool(binary, "-add_rpath", relative_path)
+
+def change_rpath_in_binary(binary, old, new):
+        install_name_tool(binary, "-rpath", old, new)
 
 def is_system_library(lib):
     return lib.startswith("/System/Library") or lib.startswith("/usr/lib")
@@ -835,7 +843,7 @@ def change_non_system_libraries_path(libraries, relative_path, binary, rpath_roo
             raise Exception("Why " + lib)
         new_path = path.join(relative_path, path.basename(full_path))
         print("Changing library", lib, "to", new_path, "in", binary)
-        install_name_tool(lib, new_path, binary)
+        change_link_name(binary, lib, new_path)
 
 def resolve_rpath(lib, rpath_root):
     if not is_relocatable_library(lib):
@@ -860,7 +868,7 @@ def copy_dependencies(binary_path, lib_path, gst_root):
     #plugins_path = [p.replace(plugins_root, '@rpath') for p in macos_plugins()]
     #binary_dependencies = binary_dependencies.union(plugins_path)
     binary_dependencies = binary_dependencies.union(macos_plugins())
-    #change_non_system_libraries_path(binary_dependencies, relative_path, binary_path, gst_root)
+    change_non_system_libraries_path(binary_dependencies, relative_path, binary_path, gst_root)
 
     # Update dependencies libraries
     need_checked = binary_dependencies
@@ -869,7 +877,6 @@ def copy_dependencies(binary_path, lib_path, gst_root):
         checking = set(need_checked)
         need_checked = set()
         for f in checking:
-            # print("Checking ", f)
             # No need to check these for their dylibs
             if is_system_library(f):
                 continue

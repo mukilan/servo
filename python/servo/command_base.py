@@ -36,7 +36,7 @@ import toml
 
 from xml.etree.ElementTree import XML
 from servo.util import download_file
-from .bootstrap import check_gstreamer_lib
+from .bootstrap import check_gstreamer_lib, check_macos_gstreamer_lib
 from mach.decorators import CommandArgument
 from mach.registrar import Registrar
 from servo.packages import WINDOWS_MSVC as msvc_deps
@@ -548,10 +548,14 @@ class CommandBase(object):
 
         effective_target = target or host_triple()
 
-        # We override homebrew gstreamer (if present) and
-        # always use official gstreamer framework
-        if "darwin" in effective_target:
-            return True
+        if is_macosx():
+            if check_macos_gstreamer_lib(): 
+                # We override homebrew gstreamer if installed and
+                # always use pkgconfig from official gstreamer framework
+                return True
+            else:
+                raise Exception("Official GStreamer framework not found (we need at least 1.21)."
+                                "Please see installation instructions in README.md")
 
         try:
             if check_gstreamer_lib():

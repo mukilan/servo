@@ -1,3 +1,4 @@
+.git
 /.servo
 /.cargo/*
 !/.cargo/config.*
