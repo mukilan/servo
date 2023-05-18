@@ -551,213 +551,209 @@ class PackageCommands(CommandBase):
     @CommandArgument('--secret-from-environment',
                      action='store_true',
                      help='Retrieve the appropriate secrets from the environment.')
-    @CommandArgument('--github-release-id',
-                     default=None,
-                     type=int,
-                     help='The github release to upload the nightly builds.')
-    def upload_nightly(self, platform, secret_from_environment, github_release_id):
+    def upload_nightly(self, platform, secret_from_environment):
         import boto3
 
-        def get_s3_secret():
-            aws_access_key = None
-            aws_secret_access_key = None
-            if secret_from_environment:
-                secret = json.loads(os.environ['S3_UPLOAD_CREDENTIALS'])
-                aws_access_key = secret["aws_access_key_id"]
-                aws_secret_access_key = secret["aws_secret_access_key"]
-            return (aws_access_key, aws_secret_access_key)
-
-        def nightly_filename(package, timestamp):
-            return '{}-{}'.format(
-                timestamp.isoformat() + 'Z',  # The `Z` denotes UTC
-                path.basename(package)
-            )
-
-        def upload_to_github_release(platform, package, package_hash):
-            if not github_release_id:
-                return
-
-            extension = path.basename(package).partition('.')[2]
-            g = Github(os.environ['NIGHTLY_REPO_TOKEN'])
-            nightly_repo = g.get_repo(os.environ['NIGHTLY_REPO'])
-            release = nightly_repo.get_release(github_release_id)
-            package_hash_fileobj = io.BytesIO(package_hash.encode('utf-8'))
-
-            if '2020' in platform:
-                asset_name = f'servo-latest-layout-2020.{extension}'
-            else:
-                asset_name = f'servo-latest.{extension}'
-
-            release.upload_asset(package, name=asset_name)
-            release.upload_asset_from_memory(
-                package_hash_fileobj,
-                package_hash_fileobj.getbuffer().nbytes,
-                name=f'{asset_name}.sha256')
-
-        def upload_to_s3(platform, package, package_hash, timestamp):
-            (aws_access_key, aws_secret_access_key) = get_s3_secret()
-            s3 = boto3.client(
-                's3',
-                aws_access_key_id=aws_access_key,
-                aws_secret_access_key=aws_secret_access_key
-            )
-
-            cloudfront = boto3.client(
-                'cloudfront',
-                aws_access_key_id=aws_access_key,
-                aws_secret_access_key=aws_secret_access_key
-            )
-
-            BUCKET = 'servo-builds2'
-            DISTRIBUTION_ID = 'EJ8ZWSJKFCJS2'
-
-            nightly_dir = 'nightly/{}'.format(platform)
-            filename = nightly_filename(package, timestamp)
-            package_upload_key = '{}/{}'.format(nightly_dir, filename)
-            extension = path.basename(package).partition('.')[2]
-            latest_upload_key = '{}/servo-latest.{}'.format(nightly_dir, extension)
-
-            package_hash_fileobj = io.BytesIO(package_hash.encode('utf-8'))
-            latest_hash_upload_key = f'{latest_upload_key}.sha256'
-
-            s3.upload_file(package, BUCKET, package_upload_key)
-
-            copy_source = {
-                'Bucket': BUCKET,
-                'Key': package_upload_key,
-            }
-            s3.copy(copy_source, BUCKET, latest_upload_key)
-            s3.upload_fileobj(
-                package_hash_fileobj, BUCKET, latest_hash_upload_key, ExtraArgs={'ContentType': 'text/plain'}
-            )
-
-            # Invalidate previous "latest" nightly files from
-            # CloudFront edge caches
-            cloudfront.create_invalidation(
-                DistributionId=DISTRIBUTION_ID,
-                InvalidationBatch={
-                    'CallerReference': f'{latest_upload_key}-{timestamp}',
-                    'Paths': {
-                        'Quantity': 1,
-                        'Items': [
-                            f'/{latest_upload_key}*'
-                        ]
-                    }
-                }
-            )
-
-        def update_maven(directory):
-            (aws_access_key, aws_secret_access_key) = get_s3_secret()
-            s3 = boto3.client(
-                's3',
-                aws_access_key_id=aws_access_key,
-                aws_secret_access_key=aws_secret_access_key
-            )
-            BUCKET = 'servo-builds2'
-
-            nightly_dir = 'nightly/maven'
-            dest_key_base = directory.replace("target/android/gradle/servoview/maven", nightly_dir)
-            if dest_key_base[-1] == '/':
-                dest_key_base = dest_key_base[:-1]
-
-            # Given a directory with subdirectories like 0.0.1.20181005.caa4d190af...
-            for artifact_dir in os.listdir(directory):
-                base_dir = os.path.join(directory, artifact_dir)
-                if not os.path.isdir(base_dir):
-                    continue
-                package_upload_base = "{}/{}".format(dest_key_base, artifact_dir)
-                # Upload all of the files inside the subdirectory.
-                for f in os.listdir(base_dir):
-                    file_upload_key = "{}/{}".format(package_upload_base, f)
-                    print("Uploading %s to %s" % (os.path.join(base_dir, f), file_upload_key))
-                    s3.upload_file(os.path.join(base_dir, f), BUCKET, file_upload_key)
-
-        def update_brew(package, timestamp):
-            print("Updating brew formula")
-
-            package_url = 'https://download.servo.org/nightly/macbrew/{}'.format(
-                nightly_filename(package, timestamp)
-            )
-            with open(package) as p:
-                digest = hashlib.sha256(p.read()).hexdigest()
-
-            brew_version = timestamp.strftime('%Y.%m.%d')
-
-            with TemporaryDirectory(prefix='homebrew-servo') as tmp_dir:
-                def call_git(cmd, **kwargs):
-                    subprocess.check_call(
-                        ['git', '-C', tmp_dir] + cmd,
-                        **kwargs
-                    )
-
-                call_git([
-                    'clone',
-                    'https://github.com/servo/homebrew-servo.git',
-                    '.',
-                ])
-
-                script_dir = path.dirname(path.realpath(__file__))
-                with open(path.join(script_dir, 'servo-binary-formula.rb.in')) as f:
-                    formula = f.read()
-                formula = formula.replace('PACKAGEURL', package_url)
-                formula = formula.replace('SHA', digest)
-                formula = formula.replace('VERSION', brew_version)
-                with open(path.join(tmp_dir, 'Formula', 'servo-bin.rb'), 'w') as f:
-                    f.write(formula)
-
-                call_git(['add', path.join('.', 'Formula', 'servo-bin.rb')])
-                call_git([
-                    '-c', 'user.name=Tom Servo',
-                    '-c', 'user.email=servo@servo.org',
-                    'commit',
-                    '--message=Version Bump: {}'.format(brew_version),
-                ])
-
-                token = os.environ['GITHUB_HOMEBREW_TOKEN']
-
-                push_url = 'https://{}@github.com/servo/homebrew-servo.git'
-                # TODO(aneeshusa): Use subprocess.DEVNULL with Python 3.3+
-                with open(os.devnull, 'wb') as DEVNULL:
-                    call_git([
-                        'push',
-                        '-qf',
-                        push_url.format(token),
-                        'master',
-                    ], stdout=DEVNULL, stderr=DEVNULL)
-
-        timestamp = datetime.utcnow().replace(microsecond=0)
-        for package in PACKAGES[platform]:
-            if path.isdir(package):
-                continue
-            if not path.isfile(package):
-                print("Could not find package for {} at {}".format(
-                    platform,
-                    package
-                ), file=sys.stderr)
-                return 1
-
-            # Compute the hash
-            SHA_BUF_SIZE = 1048576  # read in 1 MiB chunks
-            sha256_digest = hashlib.sha256()
-            with open(package, 'rb') as package_file:
-                while True:
-                    data = package_file.read(SHA_BUF_SIZE)
-                    if not data:
-                        break
-                    sha256_digest.update(data)
-            package_hash = sha256_digest.hexdigest()
-
-            upload_to_s3(platform, package, package_hash, timestamp)
-            upload_to_github_release(platform, package, package_hash)
-
-        if platform == 'maven':
-            for package in PACKAGES[platform]:
-                update_maven(package)
-
-        if platform == 'macbrew':
-            packages = PACKAGES[platform]
-            assert(len(packages) == 1)
-            update_brew(packages[0], timestamp)
+        # def get_s3_secret():
+        #     aws_access_key = None
+        #     aws_secret_access_key = None
+        #     if secret_from_environment:
+        #         secret = json.loads(os.environ['S3_UPLOAD_CREDENTIALS'])
+        #         aws_access_key = secret["aws_access_key_id"]
+        #         aws_secret_access_key = secret["aws_secret_access_key"]
+        #     return (aws_access_key, aws_secret_access_key)
+        #
+        # def nightly_filename(package, timestamp):
+        #     return '{}-{}'.format(
+        #         timestamp.isoformat() + 'Z',  # The `Z` denotes UTC
+        #         path.basename(package)
+        #     )
+        #
+        # def upload_to_github_release(platform, package, package_hash):
+        #     if not github_release_id:
+        #         return
+        #
+        #     extension = path.basename(package).partition('.')[2]
+        #     g = Github(os.environ['NIGHTLY_REPO_TOKEN'])
+        #     nightly_repo = g.get_repo(os.environ['NIGHTLY_REPO'])
+        #     release = nightly_repo.get_release(github_release_id)
+        #     package_hash_fileobj = io.BytesIO(package_hash.encode('utf-8'))
+        #
+        #     if '2020' in platform:
+        #         asset_name = f'servo-latest-layout-2020.{extension}'
+        #     else:
+        #         asset_name = f'servo-latest.{extension}'
+        #
+        #     release.upload_asset(package, name=asset_name)
+        #     release.upload_asset_from_memory(
+        #         package_hash_fileobj,
+        #         package_hash_fileobj.getbuffer().nbytes,
+        #         name=f'{asset_name}.sha256')
+        #
+        # def upload_to_s3(platform, package, package_hash, timestamp):
+        #     (aws_access_key, aws_secret_access_key) = get_s3_secret()
+        #     s3 = boto3.client(
+        #         's3',
+        #         aws_access_key_id=aws_access_key,
+        #         aws_secret_access_key=aws_secret_access_key
+        #     )
+        #
+        #     cloudfront = boto3.client(
+        #         'cloudfront',
+        #         aws_access_key_id=aws_access_key,
+        #         aws_secret_access_key=aws_secret_access_key
+        #     )
+        #
+        #     BUCKET = 'servo-builds2'
+        #     DISTRIBUTION_ID = 'EJ8ZWSJKFCJS2'
+        #
+        #     nightly_dir = 'nightly/{}'.format(platform)
+        #     filename = nightly_filename(package, timestamp)
+        #     package_upload_key = '{}/{}'.format(nightly_dir, filename)
+        #     extension = path.basename(package).partition('.')[2]
+        #     latest_upload_key = '{}/servo-latest.{}'.format(nightly_dir, extension)
+        #
+        #     package_hash_fileobj = io.BytesIO(package_hash.encode('utf-8'))
+        #     latest_hash_upload_key = f'{latest_upload_key}.sha256'
+        #
+        #     s3.upload_file(package, BUCKET, package_upload_key)
+        #
+        #     copy_source = {
+        #         'Bucket': BUCKET,
+        #         'Key': package_upload_key,
+        #     }
+        #     s3.copy(copy_source, BUCKET, latest_upload_key)
+        #     s3.upload_fileobj(
+        #         package_hash_fileobj, BUCKET, latest_hash_upload_key, ExtraArgs={'ContentType': 'text/plain'}
+        #     )
+        #
+        #     # Invalidate previous "latest" nightly files from
+        #     # CloudFront edge caches
+        #     cloudfront.create_invalidation(
+        #         DistributionId=DISTRIBUTION_ID,
+        #         InvalidationBatch={
+        #             'CallerReference': f'{latest_upload_key}-{timestamp}',
+        #             'Paths': {
+        #                 'Quantity': 1,
+        #                 'Items': [
+        #                     f'/{latest_upload_key}*'
+        #                 ]
+        #             }
+        #         }
+        #     )
+        #
+        # def update_maven(directory):
+        #     (aws_access_key, aws_secret_access_key) = get_s3_secret()
+        #     s3 = boto3.client(
+        #         's3',
+        #         aws_access_key_id=aws_access_key,
+        #         aws_secret_access_key=aws_secret_access_key
+        #     )
+        #     BUCKET = 'servo-builds2'
+        #
+        #     nightly_dir = 'nightly/maven'
+        #     dest_key_base = directory.replace("target/android/gradle/servoview/maven", nightly_dir)
+        #     if dest_key_base[-1] == '/':
+        #         dest_key_base = dest_key_base[:-1]
+        #
+        #     # Given a directory with subdirectories like 0.0.1.20181005.caa4d190af...
+        #     for artifact_dir in os.listdir(directory):
+        #         base_dir = os.path.join(directory, artifact_dir)
+        #         if not os.path.isdir(base_dir):
+        #             continue
+        #         package_upload_base = "{}/{}".format(dest_key_base, artifact_dir)
+        #         # Upload all of the files inside the subdirectory.
+        #         for f in os.listdir(base_dir):
+        #             file_upload_key = "{}/{}".format(package_upload_base, f)
+        #             print("Uploading %s to %s" % (os.path.join(base_dir, f), file_upload_key))
+        #             s3.upload_file(os.path.join(base_dir, f), BUCKET, file_upload_key)
+        #
+        # def update_brew(package, timestamp):
+        #     print("Updating brew formula")
+        #
+        #     package_url = 'https://download.servo.org/nightly/macbrew/{}'.format(
+        #         nightly_filename(package, timestamp)
+        #     )
+        #     with open(package) as p:
+        #         digest = hashlib.sha256(p.read()).hexdigest()
+        #
+        #     brew_version = timestamp.strftime('%Y.%m.%d')
+        #
+        #     with TemporaryDirectory(prefix='homebrew-servo') as tmp_dir:
+        #         def call_git(cmd, **kwargs):
+        #             subprocess.check_call(
+        #                 ['git', '-C', tmp_dir] + cmd,
+        #                 **kwargs
+        #             )
+        #
+        #         call_git([
+        #             'clone',
+        #             'https://github.com/servo/homebrew-servo.git',
+        #             '.',
+        #         ])
+        #
+        #         script_dir = path.dirname(path.realpath(__file__))
+        #         with open(path.join(script_dir, 'servo-binary-formula.rb.in')) as f:
+        #             formula = f.read()
+        #         formula = formula.replace('PACKAGEURL', package_url)
+        #         formula = formula.replace('SHA', digest)
+        #         formula = formula.replace('VERSION', brew_version)
+        #         with open(path.join(tmp_dir, 'Formula', 'servo-bin.rb'), 'w') as f:
+        #             f.write(formula)
+        #
+        #         call_git(['add', path.join('.', 'Formula', 'servo-bin.rb')])
+        #         call_git([
+        #             '-c', 'user.name=Tom Servo',
+        #             '-c', 'user.email=servo@servo.org',
+        #             'commit',
+        #             '--message=Version Bump: {}'.format(brew_version),
+        #         ])
+        #
+        #         token = os.environ['GITHUB_HOMEBREW_TOKEN']
+        #
+        #         push_url = 'https://{}@github.com/servo/homebrew-servo.git'
+        #         # TODO(aneeshusa): Use subprocess.DEVNULL with Python 3.3+
+        #         with open(os.devnull, 'wb') as DEVNULL:
+        #             call_git([
+        #                 'push',
+        #                 '-qf',
+        #                 push_url.format(token),
+        #                 'master',
+        #             ], stdout=DEVNULL, stderr=DEVNULL)
+        #
+        # timestamp = datetime.utcnow().replace(microsecond=0)
+        # for package in PACKAGES[platform]:
+        #     if path.isdir(package):
+        #         continue
+        #     if not path.isfile(package):
+        #         print("Could not find package for {} at {}".format(
+        #             platform,
+        #             package
+        #         ), file=sys.stderr)
+        #         return 1
+        #
+        #     # Compute the hash
+        #     SHA_BUF_SIZE = 1048576  # read in 1 MiB chunks
+        #     sha256_digest = hashlib.sha256()
+        #     with open(package, 'rb') as package_file:
+        #         while True:
+        #             data = package_file.read(SHA_BUF_SIZE)
+        #             if not data:
+        #                 break
+        #             sha256_digest.update(data)
+        #     package_hash = sha256_digest.hexdigest()
+        #
+        #     upload_to_s3(platform, package, package_hash, timestamp)
+        #     upload_to_github_release(platform, package, package_hash)
+        #
+        # if platform == 'maven':
+        #     for package in PACKAGES[platform]:
+        #         update_maven(package)
+        #
+        # if platform == 'macbrew':
+        #     packages = PACKAGES[platform]
+        #     assert(len(packages) == 1)
+        #     update_brew(packages[0], timestamp)
 
         return 0
 
