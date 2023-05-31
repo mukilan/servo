@@ -56,6 +56,15 @@ jobs:
     name: Build
     runs-on: ubuntu-20.04
     steps:
+      - name: Prep test environment
+        run: |
+          sudo apt update 
+          sudo apt install libgstreamer-plugins-bad1.0-0
+          echo "Installed -0"
+          sudo apt install libgstreamer-plugins-bad1.0
+          echo "Installed non-0"
+      - name: Exit
+        run: exit
       - uses: actions/checkout@v3
         with:
           fetch-depth: 2
