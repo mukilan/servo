@@ -55,13 +55,13 @@ PACKAGES = {
     'linux': [
         'release/servo-tech-demo.tar.gz',
     ],
-    'linux-layout2020': [
+    'linux-layout2013': [
         'release/servo-tech-demo.tar.gz',
     ],
     'mac': [
         'release/servo-tech-demo.dmg',
     ],
-    'mac-layout2020': [
+    'mac-layout2013': [
         'release/servo-tech-demo.dmg',
     ],
     'macbrew': [
@@ -75,7 +75,7 @@ PACKAGES = {
         r'release\msi\Servo.exe',
         r'release\msi\Servo.zip',
     ],
-    'windows-msvc-layout2020': [
+    'windows-msvc-layout2013': [
         r'release\msi\Servo.exe',
         r'release\msi\Servo.zip',
     ],
@@ -517,8 +517,8 @@ class PackageCommands(CommandBase):
             release = nightly_repo.get_release(github_release_id)
             package_hash_fileobj = io.BytesIO(package_hash.encode('utf-8'))
 
-            if '2020' in platform:
-                asset_name = f'servo-latest-layout-2020.{extension}'
+            if '2013' in platform:
+                asset_name = f'servo-latest-legacy-layout.{extension}'
             else:
                 asset_name = f'servo-latest.{extension}'
 
