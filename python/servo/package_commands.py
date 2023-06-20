@@ -556,7 +556,7 @@ class PackageCommands(CommandBase):
             latest_hash_upload_key = f'{latest_upload_key}.sha256'
 
             print("Uploading to S3", package, package_upload_key, latest_upload_key, latest_hash_upload_key)
-            #s3.upload_file(package, BUCKET, package_upload_key)
+            # s3.upload_file(package, BUCKET, package_upload_key)
 
             # copy_source = {
             #     'Bucket': BUCKET,
