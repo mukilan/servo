@@ -44,8 +44,8 @@ on:
 env:
   RUST_BACKTRACE: 1
   SHELL: /bin/bash
-  LAYOUT: "${{ (contains(inputs.layout, '2020') || github.ref_name == 'try-wpt-2020') && 'layout-2020' || 'layout-2013' }}"
-  PACKAGE: "${{ (contains(inputs.layout, '2020') || github.ref_name == 'try-wpt-2020') && 'linux-layout2020' || 'linux' }}"
+  LAYOUT: "${{ (contains(inputs.layout, '2013') || github.ref_name == 'try-wpt-2013') && 'layout-2013' || 'layout-2020' }}"
+  PACKAGE: "${{ (contains(inputs.layout, '2013') || github.ref_name == 'try-wpt-2013') && 'linux-layout2013' || 'linux' }}"
   SCCACHE_GHA_ENABLED: "true"
   RUSTC_WRAPPER: "sccache"
   CCACHE: "sccache"
