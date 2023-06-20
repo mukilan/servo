@@ -508,13 +508,13 @@ class PackageCommands(CommandBase):
             )
 
         def upload_to_github_release(platform, package, package_hash):
-            if not github_release_id:
-                return
+            # if not github_release_id:
+            #     return
 
             extension = path.basename(package).partition('.')[2]
-            g = Github(os.environ['NIGHTLY_REPO_TOKEN'])
-            nightly_repo = g.get_repo(os.environ['NIGHTLY_REPO'])
-            release = nightly_repo.get_release(github_release_id)
+            # g = Github(os.environ['NIGHTLY_REPO_TOKEN'])
+            # nightly_repo = g.get_repo(os.environ['NIGHTLY_REPO'])
+            # release = nightly_repo.get_release(github_release_id)
             package_hash_fileobj = io.BytesIO(package_hash.encode('utf-8'))
 
             if '2013' in platform:
@@ -522,28 +522,29 @@ class PackageCommands(CommandBase):
             else:
                 asset_name = f'servo-latest.{extension}'
 
-            release.upload_asset(package, name=asset_name)
-            release.upload_asset_from_memory(
-                package_hash_fileobj,
-                package_hash_fileobj.getbuffer().nbytes,
-                name=f'{asset_name}.sha256')
+            print('Uploading to GH', package, asset_name)
+            # release.upload_asset(package, name=asset_name)
+            # release.upload_asset_from_memory(
+            #     package_hash_fileobj,
+            #     package_hash_fileobj.getbuffer().nbytes,
+            #     name=f'{asset_name}.sha256')
 
         def upload_to_s3(platform, package, package_hash, timestamp):
-            (aws_access_key, aws_secret_access_key) = get_s3_secret()
-            s3 = boto3.client(
-                's3',
-                aws_access_key_id=aws_access_key,
-                aws_secret_access_key=aws_secret_access_key
-            )
-
-            cloudfront = boto3.client(
-                'cloudfront',
-                aws_access_key_id=aws_access_key,
-                aws_secret_access_key=aws_secret_access_key
-            )
-
-            BUCKET = 'servo-builds2'
-            DISTRIBUTION_ID = 'EJ8ZWSJKFCJS2'
+            # (aws_access_key, aws_secret_access_key) = get_s3_secret()
+            # s3 = boto3.client(
+            #     's3',
+            #     aws_access_key_id=aws_access_key,
+            #     aws_secret_access_key=aws_secret_access_key
+            # )
+            #
+            # cloudfront = boto3.client(
+            #     'cloudfront',
+            #     aws_access_key_id=aws_access_key,
+            #     aws_secret_access_key=aws_secret_access_key
+            # )
+            #
+            # BUCKET = 'servo-builds2'
+            # DISTRIBUTION_ID = 'EJ8ZWSJKFCJS2'
 
             nightly_dir = 'nightly/{}'.format(platform)
             filename = nightly_filename(package, timestamp)
@@ -554,31 +555,32 @@ class PackageCommands(CommandBase):
             package_hash_fileobj = io.BytesIO(package_hash.encode('utf-8'))
             latest_hash_upload_key = f'{latest_upload_key}.sha256'
 
-            s3.upload_file(package, BUCKET, package_upload_key)
+            print("Uploading to S3", package, package_upload_key, latest_upload_key, latest_hash_upload_key)
+            #s3.upload_file(package, BUCKET, package_upload_key)
 
-            copy_source = {
-                'Bucket': BUCKET,
-                'Key': package_upload_key,
-            }
-            s3.copy(copy_source, BUCKET, latest_upload_key)
-            s3.upload_fileobj(
-                package_hash_fileobj, BUCKET, latest_hash_upload_key, ExtraArgs={'ContentType': 'text/plain'}
-            )
-
+            # copy_source = {
+            #     'Bucket': BUCKET,
+            #     'Key': package_upload_key,
+            # }
+            # s3.copy(copy_source, BUCKET, latest_upload_key)
+            # s3.upload_fileobj(
+            #     package_hash_fileobj, BUCKET, latest_hash_upload_key, ExtraArgs={'ContentType': 'text/plain'}
+            # )
+            #
             # Invalidate previous "latest" nightly files from
             # CloudFront edge caches
-            cloudfront.create_invalidation(
-                DistributionId=DISTRIBUTION_ID,
-                InvalidationBatch={
-                    'CallerReference': f'{latest_upload_key}-{timestamp}',
-                    'Paths': {
-                        'Quantity': 1,
-                        'Items': [
-                            f'/{latest_upload_key}*'
-                        ]
-                    }
-                }
-            )
+            # cloudfront.create_invalidation(
+            #     DistributionId=DISTRIBUTION_ID,
+            #     InvalidationBatch={
+            #         'CallerReference': f'{latest_upload_key}-{timestamp}',
+            #         'Paths': {
+            #             'Quantity': 1,
+            #             'Items': [
+            #                 f'/{latest_upload_key}*'
+            #             ]
+            #         }
+            #     }
+            # )
 
         def update_maven(directory):
             (aws_access_key, aws_secret_access_key) = get_s3_secret()
