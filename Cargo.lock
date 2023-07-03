@@ -3062,6 +3062,7 @@ dependencies = [
  "style_traits",
  "unicode-script",
  "webrender_api",
+ "xi-unicode",
 ]
 
 [[package]]
