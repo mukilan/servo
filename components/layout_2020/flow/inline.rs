@@ -83,6 +83,7 @@ pub(crate) struct TextRun {
 struct InlineNestingLevelState<'box_tree> {
     remaining_boxes: InlineBoxChildIter<'box_tree>,
     fragments_so_far: Vec<Fragment>,
+    line_items_so_far: Vec<LineItem>,
     inline_start: Length,
     max_block_size_of_fragments_so_far: Length,
     positioning_context: Option<PositioningContext>,
@@ -184,11 +185,16 @@ impl<'box_tree, 'a, 'b> InlineFormattingContextState<'box_tree, 'a, 'b> {
             nesting_level = &mut partial.parent_nesting_level;
         }
         self.lines.finish_line(
-            nesting_level,
+            std::mem::take(&mut nesting_level.fragments_so_far),
             self.containing_block,
             self.sequential_layout_state.as_mut().map(|c| &mut **c),
             self.inline_position,
+            std::mem::replace(
+                &mut nesting_level.max_block_size_of_fragments_so_far,
+                Length::zero(),
+            )
         );
+
         self.inline_position = Length::zero();
         self.line_had_any_content = false;
         self.line_had_any_absolutes = false;
@@ -213,6 +219,195 @@ impl<'box_tree, 'a, 'b> InlineFormattingContextState<'box_tree, 'a, 'b> {
             }
         }
         return true;
+    }
+}
+
+struct CurrentLine {
+    line_items: Vec<LineItem>,
+}
+
+struct InlineBoxLineItem {
+    base_fragment_info: BaseFragmentInfo,
+    style: Arc<ComputedValues>,
+    first_fragment: bool,
+    last_fragment: bool,
+    children: Vec<LineItem>,
+}
+
+impl InlineBoxLineItem {
+    fn layout(
+        &mut self,
+        layout_context: &LayoutContext,
+        ifc: &mut InlineFormattingContextState,
+        state: &mut LineLayoutState
+    ) -> Option<BoxFragment> {
+        let style = self.style.clone();
+        let pbm = style.padding_border_margin(&ifc.containing_block);
+        let mut padding = pbm.padding;
+        let mut border = pbm.border;
+        let mut margin = pbm.margin.auto_is(Length::zero);
+
+        if !self.first_fragment {
+            padding.inline_start = Length::zero();
+            border.inline_start = Length::zero();
+            margin.inline_start = Length::zero();
+        }
+
+        let mut line_had_any_content = true;
+        let mut line_had_any_absolutes = true;
+        if padding.inline_sum() > Length::zero() ||
+            border.inline_sum() > Length::zero() ||
+            margin.inline_sum() > Length::zero()
+        {
+            line_had_any_content = true;
+        }
+
+        if !line_had_any_content && !line_had_any_absolutes && !self.first_fragment {
+            return None;
+        }
+        line_had_any_content = true;
+
+        // If we are finishing in order to fragment this InlineBox into multiple lines, do
+        // not add end margins, borders, and padding.
+        if !self.last_fragment {
+            padding.inline_end = Length::zero();
+            border.inline_end = Length::zero();
+            margin.inline_end = Length::zero();
+        }
+
+
+        state.inline_position += padding.inline_start + border.inline_start + margin.inline_start;
+        // TODO: layout all the children
+
+        let nested_state = LineLayoutState {
+            inline_position: state.inline_position,
+            max_block_size: Length::zero(),
+            containing_block_inline_start: state.inline_position,
+        };
+        let content_rect = Rect::zero();
+       
+
+        state.inline_position = nested_state.inline_position;
+        state.inline_position += padding.inline_end + border.inline_end + margin.inline_end;
+        state.max_block_size.max_assign(content_rect.size.block);
+
+        let mut fragment = BoxFragment::new(
+            self.base_fragment_info,
+            self.style.clone(),
+            vec![],
+            content_rect,
+            padding,
+            border,
+            margin,
+            None,
+            CollapsedBlockMargins::zero(),
+        );
+
+        // if let Some(context) = nesting_level.positioning_context.as_mut() {
+        //     context.layout_collected_children(layout_context, &mut fragment);
+        // }
+
+        Some(fragment)
+    }
+}
+
+struct TextRunLineItem {
+    base_fragment_info: BaseFragmentInfo,
+    parent_style: Arc<ComputedValues>,
+    text: Vec<std::sync::Arc<GlyphStore>>,
+    font_metrics: FontMetrics,
+    font_key: FontInstanceKey,
+    text_decoration_line: TextDecorationLine
+}
+
+impl TextRunLineItem {
+    fn trim_whitespace_at_beginning(&mut self) -> bool {
+        if let Some(pos) = self.text.iter().position(|glyph| !glyph.is_whitespace()) {
+            self.text = self.text.split_off(pos);
+            return false;
+        }
+        true
+    }
+    fn trim_whitespace_at_end(&mut self) -> bool {
+        if let Some(pos) = self.text.iter().rev().position(|glyph| !glyph.is_whitespace()) {
+            self.text.truncate(pos + 1);
+            return false;
+        }
+        true
+    }
+    fn layout(self, state: &mut LineLayoutState) -> Option<TextFragment> {
+        if self.text.is_empty() {
+            return None;
+        }
+
+        let font_size = self.parent_style.get_font().font_size.size.0;
+        let line_height = match self.parent_style.get_inherited_text().line_height {
+            LineHeight::Normal => self.font_metrics.line_gap,
+            LineHeight::Number(n) => font_size * n.0,
+            LineHeight::Length(l) => l.0,
+        };
+
+        let inline_advance = self.text.iter()
+            .map(|glyph_store| glyph_store.total_advance()).sum();
+        let rect = Rect {
+            start_corner: Vec2 {
+                block: Length::zero(),
+                inline: state.inline_position - state.containing_block_inline_start,
+            },
+            size: Vec2 {
+                block: line_height,
+                inline: Length::new(inline_advance.to_px()),
+            },
+        };
+
+        state.inline_position += inline_advance;
+        state.max_block_size.max_assign(line_height);
+        Some(TextFragment {
+            base: self.base_fragment_info.into(),
+            parent_style: self.parent_style,
+            rect,
+            font_metrics: self.font_metrics,
+            font_key: self.font_key,
+            glyphs: self.text,
+            text_decoration_line: self.text_decoration_line,
+        })
+    }
+}
+enum LineItem {
+    TextRun(TextRunLineItem),
+    InlineBox(InlineBoxLineItem),
+    Atomic(BoxFragment)
+}
+
+impl LineItem {
+    fn trim_whitespace_at_beginning(&mut self) -> bool {
+        match self {
+            LineItem::TextRun(ref mut item) => item.trim_whitespace_at_beginning(), 
+            LineItem::InlineBox(b) => {
+                for child in &mut b.children {
+                    if !child.trim_whitespace_at_beginning() {
+                        return false;
+                    }
+                }
+                true
+            }
+            LineItem::Atomic(_) => return false
+        }
+    }
+
+    fn trim_whitespace_at_end(&mut self) -> bool {
+        match self {
+            LineItem::TextRun(ref mut item) => item.trim_whitespace_at_end(),
+            LineItem::InlineBox(b) => {
+                for child in b.children.iter_mut().rev() {
+                    if !child.trim_whitespace_at_end() {
+                        return false;
+                    }
+                }
+                true
+            }
+            LineItem::Atomic(_) => return false
+        }
     }
 }
 
@@ -414,6 +609,7 @@ impl InlineFormattingContext {
             current_nesting_level: InlineNestingLevelState {
                 remaining_boxes: InlineBoxChildIter::from_formatting_context(self),
                 fragments_so_far: Vec::with_capacity(self.inline_level_boxes.len()),
+                line_items_so_far: Vec::with_capacity(self.inline_level_boxes.len()),
                 inline_start: Length::zero(),
                 max_block_size_of_fragments_so_far: Length::zero(),
                 positioning_context: None,
@@ -515,10 +711,14 @@ impl InlineFormattingContext {
         }
 
         ifc.lines.finish_line(
-            &mut ifc.current_nesting_level,
+            std::mem::take(&mut ifc.current_nesting_level.fragments_so_far),
             containing_block,
             ifc.sequential_layout_state,
             ifc.inline_position,
+            std::mem::replace(
+                &mut ifc.current_nesting_level.max_block_size_of_fragments_so_far,
+                Length::zero(),
+            )
         );
 
         let mut collapsible_margins_in_children = CollapsedBlockMargins::zero();
@@ -558,19 +758,75 @@ impl InlineFormattingContext {
     }
 }
 
+struct LineLayoutState {
+    inline_position: Length,
+    max_block_size: Length,
+    containing_block_inline_start: Length
+}
+
 impl Lines {
+    fn finish_current_line(
+        &mut self,
+        layout_context: &LayoutContext,
+        ifc: &mut InlineFormattingContextState,
+        mut line_items: Vec<LineItem>,
+        containing_block: &ContainingBlock,
+        mut sequential_layout_state: Option<&mut SequentialLayoutState>
+    ) {
+        for item in &mut line_items {
+            if !item.trim_whitespace_at_beginning() {
+                break;
+            }
+        }
+
+        for item in &mut line_items {
+            if !item.trim_whitespace_at_end() {
+                break;
+            }
+        }
+
+        let mut state = LineLayoutState {
+            inline_position: Length::zero(),
+            max_block_size: Length::zero(),
+            containing_block_inline_start: Length::zero()
+        };
+
+        let mut fragments = vec![];
+        for item in line_items.into_iter() {
+            match item {
+                LineItem::TextRun(item) => {
+                    if let Some(fragment) = item.layout(&mut state) {
+                        fragments.push(Fragment::Text(fragment));
+                    }
+                }
+                LineItem::InlineBox(mut b) => {
+                    if let Some(fragment) = b.layout(layout_context, ifc, &mut state) {
+                        fragments.push(Fragment::Box(fragment))
+                    }
+                }
+                LineItem::Atomic(fragment) => {
+                    fragments.push(Fragment::Box(fragment))
+                }
+            }
+        }
+
+        self.finish_line(
+            fragments,
+            containing_block,
+            sequential_layout_state,
+            state.inline_position,
+            state.max_block_size
+        )
+    }
+
     fn finish_line(
         &mut self,
-        top_nesting_level: &mut InlineNestingLevelState,
+        line_contents: Vec<Fragment>,
         containing_block: &ContainingBlock,
         mut sequential_layout_state: Option<&mut SequentialLayoutState>,
         line_content_inline_size: Length,
+        max_block_size_of_fragments_so_far: Length,
     ) {
-        let mut line_contents = std::mem::take(&mut top_nesting_level.fragments_so_far);
-        let line_block_size = std::mem::replace(
-            &mut top_nesting_level.max_block_size_of_fragments_so_far,
-            Length::zero(),
-        );
         enum TextAlign {
             Start,
             Center,
@@ -690,6 +946,7 @@ impl InlineBox {
                         this_inline_level_box,
                     ),
                     fragments_so_far: Vec::with_capacity(self.children.len()),
+                    line_items_so_far: Vec::with_capacity(self.children.len()),
                     inline_start: ifc.inline_position,
                     max_block_size_of_fragments_so_far: Length::zero(),
                     positioning_context,
@@ -767,10 +1024,22 @@ impl<'box_tree> PartialInlineBoxFragment<'box_tree> {
             context.layout_collected_children(layout_context, &mut fragment);
         }
 
-        self.was_part_of_previous_line = true;
         self.parent_nesting_level
             .fragments_so_far
             .push(Fragment::Box(fragment));
+        self.parent_nesting_level
+            .line_items_so_far
+            .push(LineItem::InlineBox(
+                InlineBoxLineItem {
+                    base_fragment_info: self.base_fragment_info,
+                    style: self.style.clone(),
+                    first_fragment: !self.was_part_of_previous_line,
+                    last_fragment: at_end_of_inline_element,
+                    children: std::mem::take(&mut nesting_level.line_items_so_far),
+                }
+            ));
+
+        self.was_part_of_previous_line = true;
     }
 }
 
@@ -1179,8 +1448,18 @@ impl TextRun {
                 rect,
                 font_metrics,
                 font_key,
-                glyphs,
+                glyphs: glyphs.clone(),
                 text_decoration_line: ifc.current_nesting_level.text_decoration_line,
+            }));
+        ifc.current_nesting_level
+            .line_items_so_far
+            .push(LineItem::TextRun(TextRunLineItem {
+                text: glyphs,
+                base_fragment_info: self.base_fragment_info.into(),
+                parent_style: self.parent_style.clone(),
+                font_metrics,
+                font_key,
+                text_decoration_line: ifc.current_nesting_level.text_decoration_line
             }));
     }
 }
