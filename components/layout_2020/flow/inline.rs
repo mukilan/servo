@@ -9,7 +9,7 @@ use crate::flow::FlowLayout;
 use crate::formatting_contexts::IndependentFormattingContext;
 use crate::fragment_tree::{
     AnonymousFragment, BaseFragmentInfo, BoxFragment, CollapsedBlockMargins, CollapsedMargin,
-    FontMetrics, Fragment, TextFragment,
+    FontMetrics, Fragment, TextFragment, HoistedSharedFragment,
 };
 use crate::geom::flow_relative::{Rect, Sides, Vec2};
 use crate::positioned::{
@@ -144,9 +144,13 @@ impl<'box_tree, 'a, 'b> InlineFormattingContextState<'box_tree, 'a, 'b> {
     ) {
         self.line_had_any_absolutes = true;
 
+        self.get_current_positioning_context().push(hoisted_box);
+    }
+
+    /// Finish layout of all the partial inline boxes in the current line,
+    fn get_current_positioning_context(&mut self) -> &mut PositioningContext {
         if let Some(context) = self.current_nesting_level.positioning_context.as_mut() {
-            context.push(hoisted_box);
-            return;
+            return context;
         }
 
         for nesting_level in self.partial_inline_boxes_stack.iter_mut().rev() {
@@ -155,12 +159,11 @@ impl<'box_tree, 'a, 'b> InlineFormattingContextState<'box_tree, 'a, 'b> {
                 .positioning_context
                 .as_mut()
             {
-                context.push(hoisted_box);
-                return;
+                return context;
             }
         }
 
-        self.positioning_context.push(hoisted_box);
+        return &mut self.positioning_context;
     }
 
     /// Finish layout of all the partial inline boxes in the current line,
@@ -236,7 +239,7 @@ struct InlineBoxLineItem {
 
 impl InlineBoxLineItem {
     fn layout(
-        &mut self,
+        self,
         layout_context: &LayoutContext,
         ifc: &mut InlineFormattingContextState,
         state: &mut LineLayoutState
@@ -265,7 +268,6 @@ impl InlineBoxLineItem {
         if !line_had_any_content && !line_had_any_absolutes && !self.first_fragment {
             return None;
         }
-        line_had_any_content = true;
 
         // If we are finishing in order to fragment this InlineBox into multiple lines, do
         // not add end margins, borders, and padding.
@@ -276,25 +278,42 @@ impl InlineBoxLineItem {
         }
 
 
-        state.inline_position += padding.inline_start + border.inline_start + margin.inline_start;
-        // TODO: layout all the children
+        let pbm_sums = &(&padding + &border) + &margin;
+        state.inline_position += pbm_sums.inline_start;
 
-        let nested_state = LineLayoutState {
+
+        let mut nested_state = LineLayoutState {
             inline_position: state.inline_position,
             max_block_size: Length::zero(),
             containing_block_inline_start: state.inline_position,
+            positioning_context: PositioningContext::new_for_subtree(collects_for_nearest_positioned_ancestor)
         };
-        let content_rect = Rect::zero();
-       
+
+        let fragments = layout_line_items(self.children, layout_context, ifc, &mut nested_state);
+
+        let mut content_rect = Rect {
+            start_corner: Vec2 {
+                inline: state.inline_position - state.containing_block_inline_start,
+                block: Length::zero()
+            },
+            size: Vec2 {
+                block: nested_state.max_block_size + pbm_sums.block_sum(),
+                inline: nested_state.inline_position - state.containing_block_inline_start + pbm_sums.inline_end
+            }
+        };
+
+        if style.clone_position().is_relative() {
+            content_rect.start_corner += &relative_adjustement(&style, ifc.containing_block);
+        }
 
         state.inline_position = nested_state.inline_position;
         state.inline_position += padding.inline_end + border.inline_end + margin.inline_end;
         state.max_block_size.max_assign(content_rect.size.block);
 
-        let mut fragment = BoxFragment::new(
+        let fragment = BoxFragment::new(
             self.base_fragment_info,
             self.style.clone(),
-            vec![],
+            fragments,
             content_rect,
             padding,
             border,
@@ -347,8 +366,9 @@ impl TextRunLineItem {
             LineHeight::Length(l) => l.0,
         };
 
-        let inline_advance = self.text.iter()
-            .map(|glyph_store| glyph_store.total_advance()).sum();
+        let inline_advance: Length = self.text.iter()
+            .map(|glyph_store| Length::new(glyph_store.total_advance().to_px() as f32))
+            .sum();
         let rect = Rect {
             start_corner: Vec2 {
                 block: Length::zero(),
@@ -356,7 +376,7 @@ impl TextRunLineItem {
             },
             size: Vec2 {
                 block: line_height,
-                inline: Length::new(inline_advance.to_px()),
+                inline: inline_advance
             },
         };
 
@@ -373,10 +393,80 @@ impl TextRunLineItem {
         })
     }
 }
+
+struct AtomicLineItem {
+    fragment: BoxFragment,
+    size: Vec2<Length>,
+    positioning_context: Option<PositioningContext>
+}
+
+impl AtomicLineItem {
+    fn layout(
+        mut self,
+        state: &mut LineLayoutState,
+        parent_positioning_context: &mut PositioningContext) -> BoxFragment {
+        self.fragment.content_rect.start_corner.inline = 
+            state.inline_position - state.containing_block_inline_start;
+        state.inline_position += self.size.inline;
+        state.max_block_size.max_assign(self.size.block);
+
+        if let Some(mut positioning_context) = self.positioning_context {
+            positioning_context
+                .adjust_static_position_of_hoisted_fragments_with_offset(&self.fragment.content_rect.start_corner);
+            parent_positioning_context.append(positioning_context);
+        }
+
+        self.fragment
+    }
+}
+
+struct AbsolutelyPositionedLineItem {
+    absolutely_positioned_box: ArcRefCell<AbsolutelyPositionedBox> 
+}
+
+impl AbsolutelyPositionedLineItem {
+    fn layout(
+        self,
+        state: &LineLayoutState,
+        containing_block: &ContainingBlock,
+        parent_positioning_context: &mut PositioningContext) -> ArcRefCell<HoistedSharedFragment> {
+        let box_ = self.absolutely_positioned_box;
+        let style = AtomicRef::map(box_.borrow(), |box_| box_.context.style());
+        let initial_start_corner =
+        match Display::from(style.get_box().original_display) {
+            Display::GeneratingBox(DisplayGeneratingBox::OutsideInside {
+                outside,
+                inside: _,
+            }) => Vec2 {
+                    inline: match outside {
+                        DisplayOutside::Inline => state.inline_position - state.containing_block_inline_start,
+                        DisplayOutside::Block => Length::zero(),
+                    },
+                    block: Length::zero() 
+                },
+            Display::Contents => {
+                panic!("display:contents does not generate an abspos box")
+            },
+            Display::None => {
+                panic!("display:none does not generate an abspos box")
+            },
+        };
+        let hoisted_box = AbsolutelyPositionedBox::to_hoisted(
+            box_.clone(),
+            initial_start_corner,
+            containing_block,
+        );
+        let hoisted_fragment = hoisted_box.fragment.clone();
+        parent_positioning_context.push(hoisted_box);
+        hoisted_fragment
+    }
+}
+
 enum LineItem {
     TextRun(TextRunLineItem),
     InlineBox(InlineBoxLineItem),
-    Atomic(BoxFragment)
+    Atomic(AtomicLineItem),
+    AbsolutelyPositioned(AbsolutelyPositionedLineItem)
 }
 
 impl LineItem {
@@ -665,6 +755,11 @@ impl InlineFormattingContext {
                         ifc.current_nesting_level
                             .fragments_so_far
                             .push(Fragment::AbsoluteOrFixedPositioned(hoisted_fragment));
+                        ifc.current_nesting_level
+                            .line_items_so_far
+                            .push(LineItem::AbsolutelyPositioned(
+                                AbsolutelyPositionedLineItem { absolutely_positioned_box: box_.clone() }
+                            ));
                     },
                     InlineLevelBox::OutOfFlowFloatBox(float_box) => {
                         let mut box_fragment = float_box.layout(
@@ -761,7 +856,41 @@ impl InlineFormattingContext {
 struct LineLayoutState {
     inline_position: Length,
     max_block_size: Length,
-    containing_block_inline_start: Length
+    containing_block_inline_start: Length,
+    positioning_context: PositioningContext
+}
+
+fn layout_line_items(
+    line_items: Vec<LineItem>,
+    layout_context: &LayoutContext,
+    ifc: &mut InlineFormattingContextState,
+    state: &mut LineLayoutState
+) -> Vec<Fragment> {
+    let mut fragments = vec![];
+    for item in line_items.into_iter() {
+        match item {
+            LineItem::TextRun(item) => {
+                if let Some(fragment) = item.layout(state) {
+                    fragments.push(Fragment::Text(fragment));
+                }
+            }
+            LineItem::InlineBox(b) => {
+                if let Some(fragment) = b.layout(layout_context, ifc, state) {
+                    fragments.push(Fragment::Box(fragment))
+                }
+            }
+            LineItem::Atomic(atomic) => {
+                let parent_positioning_context = ifc.get_current_positioning_context();
+                fragments.push(Fragment::Box(atomic.layout(state,  parent_positioning_context)));
+            },
+            LineItem::AbsolutelyPositioned(b) => {
+                let parent_positioning_context = ifc.get_current_positioning_context();
+                fragments.push(Fragment::AbsoluteOrFixedPositioned(
+                    b.layout(state, ifc.containing_block, parent_positioning_context)));
+            }
+        }
+    }
+    fragments
 }
 
 impl Lines {
@@ -771,7 +900,7 @@ impl Lines {
         ifc: &mut InlineFormattingContextState,
         mut line_items: Vec<LineItem>,
         containing_block: &ContainingBlock,
-        mut sequential_layout_state: Option<&mut SequentialLayoutState>
+        sequential_layout_state: Option<&mut SequentialLayoutState>
     ) {
         for item in &mut line_items {
             if !item.trim_whitespace_at_beginning() {
@@ -788,44 +917,33 @@ impl Lines {
         let mut state = LineLayoutState {
             inline_position: Length::zero(),
             max_block_size: Length::zero(),
-            containing_block_inline_start: Length::zero()
+            containing_block_inline_start: Length::zero(),
+            positioning_context: PositioningContext::new_for_subtree(
+                ifc.positioning_context.collects_for_nearest_positioned_ancestor())
         };
 
-        let mut fragments = vec![];
-        for item in line_items.into_iter() {
-            match item {
-                LineItem::TextRun(item) => {
-                    if let Some(fragment) = item.layout(&mut state) {
-                        fragments.push(Fragment::Text(fragment));
-                    }
-                }
-                LineItem::InlineBox(mut b) => {
-                    if let Some(fragment) = b.layout(layout_context, ifc, &mut state) {
-                        fragments.push(Fragment::Box(fragment))
-                    }
-                }
-                LineItem::Atomic(fragment) => {
-                    fragments.push(Fragment::Box(fragment))
-                }
-            }
-        }
+        let fragments = layout_line_items(line_items, layout_context, ifc, &mut state);
 
         self.finish_line(
             fragments,
             containing_block,
             sequential_layout_state,
             state.inline_position,
-            state.max_block_size
-        )
+            state.max_block_size,
+            &mut state.positioning_context
+        );
+
+        ifc.positioning_context.append(state.positioning_context);
     }
 
     fn finish_line(
         &mut self,
-        line_contents: Vec<Fragment>,
+        mut line_contents: Vec<Fragment>,
         containing_block: &ContainingBlock,
         mut sequential_layout_state: Option<&mut SequentialLayoutState>,
         line_content_inline_size: Length,
         max_block_size_of_fragments_so_far: Length,
+        positioning_context: &mut PositioningContext
     ) {
         enum TextAlign {
             Start,
@@ -881,7 +999,7 @@ impl Lines {
         };
         let size = Vec2 {
             inline: containing_block.inline_size,
-            block: line_block_size,
+            block: max_block_size_of_fragments_so_far,
         };
 
         self.next_line_block_position += size.block;
@@ -896,7 +1014,11 @@ impl Lines {
                     line_contents,
                     containing_block.style.writing_mode,
                 )));
+
+            positioning_context
+                .adjust_static_position_of_hoisted_fragments_with_offset(&start_corner);
         }
+
     }
 }
 
@@ -1177,29 +1299,38 @@ fn layout_atomic(
     ifc.inline_position += pbm_sums.inline_start;
     let mut start_corner = Vec2 {
         block: pbm_sums.block_start,
-        inline: ifc.inline_position - ifc.current_nesting_level.inline_start,
+        inline: Length::zero()
     };
     if position.is_relative() {
         start_corner += &relative_adjustement(atomic.style(), ifc.containing_block)
     }
 
-    if let Some(mut child_positioning_context) = child_positioning_context.take() {
-        child_positioning_context
-            .adjust_static_position_of_hoisted_fragments_with_offset(&start_corner);
-        ifc.positioning_context.append(child_positioning_context);
-    }
+    // if let Some(mut child_positioning_context) = child_positioning_context.take() {
+    //     child_positioning_context
+    //         .adjust_static_position_of_hoisted_fragments_with_offset(&start_corner);
+    //     ifc.positioning_context.append(child_positioning_context);
+    // }
 
     fragment.content_rect.start_corner = start_corner;
 
-    ifc.line_had_any_content = true;
-    ifc.inline_position += pbm_sums.inline_end + fragment.content_rect.size.inline;
+    let size = &pbm_sums.sum() + &fragment.content_rect.size;
     ifc.current_nesting_level
-        .max_block_size_of_fragments_so_far
-        .max_assign(pbm_sums.block_sum() + fragment.content_rect.size.block);
-    ifc.current_nesting_level
-        .fragments_so_far
-        .push(Fragment::Box(fragment));
+        .line_items_so_far
+        .push(LineItem::Atomic(AtomicLineItem {
+            fragment,
+            size,
+            positioning_context: child_positioning_context
+        }));
 
+    // ifc.line_had_any_content = true;
+    // ifc.inline_position += pbm_sums.inline_end + fragment.content_rect.size.inline;
+    // ifc.current_nesting_level
+    //     .max_block_size_of_fragments_so_far
+    //     .max_assign(pbm_sums.block_sum() + fragment.content_rect.size.block);
+    // ifc.current_nesting_level
+    //     .fragments_so_far
+    //     .push(Fragment::Box(fragment));
+    //
     // After every atomic, we need to create a line breaking opportunity for the next TextRun.
     if let Some(linebreaker) = ifc.linebreaker.as_mut() {
         linebreaker.next(" ");
