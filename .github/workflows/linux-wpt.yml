@@ -55,9 +55,13 @@ jobs:
       - name: Run tests
         if: ${{ inputs.wpt != 'sync' }}
         run: |
-          python3 ./mach test-wpt --with-${{ inputs.layout }} \
-            --release --processes $(nproc) --timeout-multiplier 2 \
-            --headless /css/CSS2/normal-flow/max-height-007.xht
+          export LD_DEBUB=all
+          export RUST_BACKTRACE=1
+          export RUST_LOG=debug
+          /home/runner/work/servo/servo/target/release/servo --hard-fail -u Servo/wptrunner --ignore-certificate-errors -z "https://wpt.live/css/CSS2/normal-flow/max-height-007.xht" -Z disable-text-aa,load-webfonts-synchronously,replace-surrogates --user-stylesheet /home/runner/work/servo/servo/resources/ahem.css --pref dom.imagebitmap.enabled=true --certificate-path /home/runner/work/servo/servo/tests/wpt/tests/tools/certs/cacert.pem --headless --legacy-layout
+          # python3 ./mach test-wpt --with-${{ inputs.layout }} \
+          #   --release --processes $(nproc) --timeout-multiplier 2 \
+          #   --headless /css/CSS2/normal-flow/max-height-007.xht
         env:
           GITHUB_CONTEXT: ${{ toJson(github) }}
           INTERMITTENT_TRACKER_DASHBOARD_SECRET: ${{ secrets.INTERMITTENT_TRACKER_DASHBOARD_SECRET }}
