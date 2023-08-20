@@ -49,12 +49,6 @@ jobs:
         with:
           ref: refs/pull/${{ github.event.issue.number }}/head
           fetch-depth: 2
-      # - name: Setup Python
-      #   uses: actions/setup-python@v4
-      #   with:
-      #     python-version: '3.10'
-      - name: Remove msys from PATH # see https://github.com/actions/runner-images/issues/2208
-        run: Remove-Item -LiteralPath "C:\msys64\" -Force -Recurse
       - name: wix311-binaries
         shell: powershell
         run: |
