@@ -368,6 +368,7 @@ impl TextRunScanner {
                     .or_else(|| font_group.borrow_mut().first(&mut font_context))
                     .expect("No font found for text run!");
 
+                println!("Font found: {:?}", font);
                 let (run, break_at_zero) = TextRun::new(
                     &mut *font.borrow_mut(),
                     run_info.text,
