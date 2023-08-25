@@ -52,8 +52,15 @@ env:
 jobs:
   build:
     name: Linux Build
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     steps:
+      - name: 'Check fonts'
+        run: |
+          ls -l /usr/share/fonts/
+          ls -l /usr/share/fonts/truetype/
+          ls -l /usr/share/fonts/truetype/dejavu/
+          ls -l /usr/share/fonts/truetype/dejavu/DejaVuSerif.ttf
+          exit 0
       - uses: actions/checkout@v3
         if: github.event_name != 'issue_comment'
         with:
