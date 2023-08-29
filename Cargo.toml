@@ -113,6 +113,8 @@ opt-level = 3
 mio = { git = "https://github.com/servo/mio.git", branch = "servo-mio-0.6.22" }
 # fork that bumps crates since the original repo is archived.
 immeta = { git = "https://github.com/fabricedesre/immeta.git" }
+# Test Servo on RPi with OpenGL ES on X11
+surfman = { git = "https://github.com/servo/surfman.git", branch = "use-opengl-es-on-x11" }
 
 # This is required because we want all dependencies that use WebRender to
 # use our vendored version.
