@@ -108,14 +108,11 @@ struct LineUnderConstruction {
     /// is trimmed from the end.
     trailing_whitespace_advance: Length,
 
-    /// The currently calculated block size of this line, taking into account all inline
-    /// content already laid out into [`LineItem`]s. Later content may increase the block
-    /// size.
+    /// TODO rename and comment
     block_size: Length,
 
-    /// Whether any active linebox has added a glyph, border, margin, or padding
-    /// to this line, which indicates that the next run that exceeds the line length
-    /// can cause a line break.
+    /// Whether any active linebox has added a glyph or atomic element to this line, which
+    /// indicates that the next run that exceeds the line length can cause a line break.
     has_content: bool,
 
     /// Whether or not there are floats that did not fit on the current line. Before
@@ -170,6 +167,9 @@ struct InlineContainerState {
     // "When specified on or propagated to a block container that establishes
     //  an IFC..."
     text_decoration_line: TextDecorationLine,
+
+    /// TODO: update doc. The height of the line if it has contents
+    line_height: Length,
 }
 
 struct InlineBoxContainerState {
@@ -197,6 +197,7 @@ struct InlineFormattingContextState<'a, 'b> {
     positioning_context: &'a mut PositioningContext,
     containing_block: &'b ContainingBlock<'b>,
     sequential_layout_state: Option<&'a mut SequentialLayoutState>,
+    layout_context: &'b LayoutContext<'b>,
 
     /// A vector of fragment that are laid out. This includes one [`Fragment::Anonymous`]
     /// per line that is currently laid out plus fragments for all floats, which
@@ -238,9 +239,10 @@ impl<'a, 'b> InlineFormattingContextState<'a, 'b> {
         self.current_line.has_content = true;
         self.current_line.inline_position += inline_size;
         self.current_line.trailing_whitespace_advance = last_whitespace_advance;
-        self.current_line
-            .block_size
-            .max_assign(line_item.block_size());
+        self.current_line.block_size.max_assign(
+            self.current_line_max_block_size()
+                .max(line_item.block_size()),
+        );
 
         let current_nesting_level = self.current_inline_container_state_mut();
         current_nesting_level.line_items_so_far.push(line_item);
@@ -262,6 +264,12 @@ impl<'a, 'b> InlineFormattingContextState<'a, 'b> {
         }
     }
 
+    fn current_line_max_block_size(&self) -> Length {
+        self.current_inline_container_state()
+            .line_height
+            .max(self.current_line.block_size)
+    }
+
     fn propagate_current_nesting_level_white_space_style(&mut self) {
         let style = match self.inline_box_state_stack.last() {
             Some(inline_box_state) => &inline_box_state.style,
@@ -273,13 +281,19 @@ impl<'a, 'b> InlineFormattingContextState<'a, 'b> {
     /// Start laying out a particular [`InlineBox`] into line items. This will push
     /// a new [`InlineBoxContainerState`] onto [`Self::inline_box_state_stack`].
     fn start_inline_box(&mut self, inline_box: &InlineBox) {
-        let text_decoration_of_parent = self.current_inline_container_state().text_decoration_line;
+        let (text_decoration_of_parent, line_height_of_parent) = {
+            let parent = self.current_inline_container_state();
+            (parent.text_decoration_line, parent.line_height)
+        };
+
         self.inline_box_state_stack
             .push(InlineBoxContainerState::new(
                 inline_box,
                 &mut self.current_line.inline_position,
                 &self.containing_block,
                 text_decoration_of_parent,
+                line_height_of_parent,
+                self.layout_context,
             ));
     }
 
@@ -295,10 +309,14 @@ impl<'a, 'b> InlineFormattingContextState<'a, 'b> {
         // We reached the end of the remaining boxes in this nesting level, so we finish it and
         // start working on the parent nesting level again.
         let line_item = inline_box_state.layout_into_line_item(
+            self.layout_context,
             &mut self.current_line.inline_position,
             true, /* at_end_of_inline_element */
         );
 
+        self.current_line
+            .block_size
+            .max_assign(inline_box_state.base.line_height);
         self.current_inline_container_state_mut()
             .line_items_so_far
             .push(LineItem::InlineBox(line_item));
@@ -325,10 +343,11 @@ impl<'a, 'b> InlineFormattingContextState<'a, 'b> {
                     .push(LineItem::InlineBox(line_item_from_child));
             }
 
-            line_item_from_child = Some(
-                inline_box_state
-                    .layout_into_line_item(&mut self.current_line.inline_position, false),
-            );
+            line_item_from_child = Some(inline_box_state.layout_into_line_item(
+                self.layout_context,
+                &mut self.current_line.inline_position,
+                false,
+            ));
         }
 
         if let Some(line_item_from_child) = line_item_from_child {
@@ -354,7 +373,15 @@ impl<'a, 'b> InlineFormattingContextState<'a, 'b> {
         let block_start_position = self
             .current_line
             .line_block_start_considering_placement_among_floats();
-        let block_end_position = block_start_position + self.current_line.block_size;
+
+        let had_inline_advance =
+            self.current_line.inline_position != self.current_line.start_position.inline;
+        let effective_block_advance = if self.current_line.has_content || had_inline_advance {
+            self.current_line.block_size
+        } else {
+            Length::zero()
+        };
+        let block_end_position = block_start_position + effective_block_advance;
 
         if let Some(sequential_layout_state) = self.sequential_layout_state.as_mut() {
             // This amount includes both the block size of the line and any extra space
@@ -806,6 +833,7 @@ impl InlineFormattingContext {
             positioning_context,
             containing_block,
             sequential_layout_state,
+            layout_context,
             fragments: Vec::new(),
             current_line: LineUnderConstruction::new(LogicalVec2 {
                 inline: first_line_inline_start,
@@ -815,6 +843,7 @@ impl InlineFormattingContext {
             linebreaker: None,
             root_nesting_level: InlineContainerState {
                 line_items_so_far: Vec::with_capacity(self.inline_level_boxes.len()),
+                line_height: line_height_from_style(layout_context, containing_block.style),
                 has_content: false,
                 text_decoration_line: self.text_decoration_line,
             },
@@ -919,6 +948,8 @@ impl InlineBoxContainerState {
         inline_position: &mut Length,
         containing_block: &ContainingBlock,
         text_decoration_of_parent: TextDecorationLine,
+        line_height_of_parent: Length,
+        layout_context: &LayoutContext,
     ) -> Self {
         let style = inline_box.style.clone();
         let mut pbm = style.padding_border_margin(containing_block);
@@ -939,6 +970,8 @@ impl InlineBoxContainerState {
                 line_items_so_far: Vec::with_capacity(inline_box.children.len()),
                 has_content: false,
                 text_decoration_line,
+                line_height: line_height_of_parent
+                    .max(line_height_from_style(layout_context, &style)),
             },
             style,
             base_fragment_info: inline_box.base_fragment_info,
@@ -949,6 +982,7 @@ impl InlineBoxContainerState {
 
     fn layout_into_line_item(
         &mut self,
+        layout_context: &LayoutContext,
         inline_position: &mut Length,
         at_end_of_inline_element: bool,
     ) -> InlineBoxLineItem {
@@ -968,6 +1002,7 @@ impl InlineBoxContainerState {
         let new_line_item = InlineBoxLineItem {
             base_fragment_info: self.base_fragment_info,
             style: self.style.clone(),
+            line_height: line_height_from_style(layout_context, &self.style),
             pbm,
             children: std::mem::take(&mut self.base.line_items_so_far),
             always_make_fragment: !self.was_part_of_previous_line,
@@ -1112,7 +1147,7 @@ impl IndependentFormattingContext {
         let size = &pbm_sums.sum() + &fragment.content_rect.size;
         let new_potential_line_size = LogicalVec2 {
             inline: ifc.current_line.inline_position + size.inline,
-            block: ifc.current_line.block_size.max(size.block),
+            block: ifc.current_line_max_block_size().max(size.block),
         };
 
         if ifc.new_potential_line_size_causes_line_break(&new_potential_line_size) {
@@ -1288,7 +1323,7 @@ impl TextRun {
             };
 
         let line_height = line_height(&self.parent_style, &font_metrics);
-        let new_max_height_of_line = ifc.current_line.block_size.max(line_height);
+        let new_max_height_of_line = ifc.current_line_max_block_size().max(line_height);
 
         let mut glyphs = vec![];
         let mut text_run_inline_size = Length::zero();
@@ -1600,13 +1635,25 @@ struct TextRunLineItem {
     text_decoration_line: TextDecorationLine,
 }
 
-fn line_height(parent_style: &Arc<ComputedValues>, font_metrics: &FontMetrics) -> Length {
+fn line_height(parent_style: &ComputedValues, font_metrics: &FontMetrics) -> Length {
     let font_size = parent_style.get_font().font_size.size.0;
     match parent_style.get_inherited_text().line_height {
         LineHeight::Normal => font_metrics.line_gap,
         LineHeight::Number(n) => font_size * n.0,
         LineHeight::Length(l) => l.0,
     }
+}
+
+fn line_height_from_style(layout_context: &LayoutContext, style: &ComputedValues) -> Length {
+    crate::context::with_thread_local_font_context(layout_context, |font_context| {
+        let font_group = font_context.font_group(style.clone_font());
+        let font = font_group
+            .borrow_mut()
+            .first(font_context)
+            .expect("could not find font");
+        let font_metrics: FontMetrics = (&font.borrow().metrics).into();
+        line_height(style, &font_metrics)
+    })
 }
 
 impl TextRunLineItem {
@@ -1684,6 +1731,7 @@ struct InlineBoxLineItem {
     base_fragment_info: BaseFragmentInfo,
     style: Arc<ComputedValues>,
     pbm: PaddingBorderMargin,
+    line_height: Length,
     children: Vec<LineItem>,
     always_make_fragment: bool,
 }
@@ -1740,7 +1788,7 @@ impl InlineBoxLineItem {
             },
             size: LogicalVec2 {
                 inline: nested_state.inline_position - state.inline_position,
-                block: nested_state.max_block_size,
+                block: nested_state.max_block_size.max(self.line_height),
             },
         };
 
