@@ -208,6 +208,9 @@ struct InlineFormattingContextState<'a, 'b> {
     /// [`LineItem`]s themselves are stored in the nesting state.
     current_line: LineUnderConstruction,
 
+    /// TODO
+    just_after_line_break: bool,
+
     /// The line breaking state for this inline formatting context.
     linebreaker: Option<LineBreakLeafIter>,
 
@@ -305,6 +308,10 @@ impl<'a, 'b> InlineFormattingContextState<'a, 'b> {
             Some(inline_box_state) => inline_box_state,
             None => return, // We are at the root.
         };
+
+        if self.just_after_line_break {
+            return;
+        }
 
         // We reached the end of the remaining boxes in this nesting level, so we finish it and
         // start working on the parent nesting level again.
@@ -441,6 +448,7 @@ impl<'a, 'b> InlineFormattingContextState<'a, 'b> {
             inline: Length::zero(),
             block: block_end_position,
         });
+        self.just_after_line_break = true;
     }
 
     /// Given the amount of whitespace trimmed from the line and taking into consideration
@@ -839,11 +847,12 @@ impl InlineFormattingContext {
                 inline: first_line_inline_start,
                 block: Length::zero(),
             }),
+            just_after_line_break: false,
             white_space: containing_block.style.get_inherited_text().white_space,
             linebreaker: None,
             root_nesting_level: InlineContainerState {
                 line_items_so_far: Vec::with_capacity(self.inline_level_boxes.len()),
-                line_height: line_height_from_style(layout_context, containing_block.style),
+                line_height: Length::zero(),
                 has_content: false,
                 text_decoration_line: self.text_decoration_line,
             },
@@ -861,7 +870,11 @@ impl InlineFormattingContext {
         let mut iterator = InlineBoxChildIter::from_formatting_context(self);
         let mut parent_iterators = Vec::new();
         loop {
-            match iterator.next() {
+            let next = iterator.next();
+            if next.is_some() {
+                ifc.just_after_line_break = false;
+            }
+            match next {
                 Some(child) => match &mut *child.borrow_mut() {
                     InlineLevelBox::InlineBox(inline_box) => {
                         ifc.start_inline_box(inline_box);
