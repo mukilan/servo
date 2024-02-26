@@ -5863,7 +5863,7 @@ dependencies = [
 [[package]]
 name = "surfman"
 version = "0.9.0"
-source = "git+https://github.com/servo/surfman?branch=fix-egl-lib-version#ec02a6f243b5ef9197ca7dd24f1fb18f2ccbfd10"
+source = "git+https://github.com/servo/surfman?branch=fix-egl-lib-version#eb31c92d89de21d8868d2bb7a10edc061f68af6c"
 dependencies = [
  "bitflags 1.3.2",
  "cfg_aliases",
