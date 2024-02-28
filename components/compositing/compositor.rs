@@ -53,7 +53,7 @@ use webrender_api::{
     self, BuiltDisplayList, ClipId, DirtyRect, DocumentId, Epoch as WebRenderEpoch,
     ExternalScrollId, HitTestFlags, PipelineId as WebRenderPipelineId, PropertyBinding,
     ReferenceFrameKind, ScrollClamping, ScrollLocation, SpaceAndClipInfo, SpatialId,
-    TransformStyle, ZoomFactor,
+    TransformStyle, ZoomFactor, ColorF, CommonItemProperties
 };
 
 use crate::gl::RenderTargetInfo;
@@ -701,17 +701,17 @@ impl<Window: WindowMethods + ?Sized> IOCompositor<Window> {
                 script_traits::ScriptToCompositorMsg::SendInitialTransaction(pipeline),
             ) => {
                 self.waiting_on_pending_frame = true;
-                let mut txn = Transaction::new();
-                txn.set_display_list(
-                    WebRenderEpoch(0),
-                    None,
-                    Default::default(),
-                    (pipeline, Default::default()),
-                    false,
-                );
-
-                self.webrender_api
-                    .send_transaction(self.webrender_document, txn);
+                // let mut txn = Transaction::new();
+                // txn.set_display_list(
+                //     WebRenderEpoch(0),
+                //     None,
+                //     Default::default(),
+                //     (pipeline, Default::default()),
+                //     false,
+                // );
+                //
+                // self.webrender_api
+                //     .send_transaction(self.webrender_document, txn);
             },
 
             ForwardedToCompositorMsg::Layout(
@@ -746,20 +746,20 @@ impl<Window: WindowMethods + ?Sized> IOCompositor<Window> {
                 details.hit_test_items = display_list_info.hit_test_info;
                 details.install_new_scroll_tree(display_list_info.scroll_tree);
 
-                let mut txn = Transaction::new();
-                txn.set_display_list(
-                    display_list_info.epoch,
-                    None,
-                    display_list_info.viewport_size,
-                    (
-                        pipeline_id,
-                        BuiltDisplayList::from_data(display_list_data, display_list_descriptor),
-                    ),
-                    true,
-                );
-                txn.generate_frame(0);
-                self.webrender_api
-                    .send_transaction(self.webrender_document, txn);
+                // let mut txn = Transaction::new();
+                // txn.set_display_list(
+                //     display_list_info.epoch,
+                //     None,
+                //     display_list_info.viewport_size,
+                //     (
+                //         pipeline_id,
+                //         BuiltDisplayList::from_data(display_list_data, display_list_descriptor),
+                //     ),
+                //     true,
+                // );
+                // txn.generate_frame(0);
+                // self.webrender_api
+                //     .send_transaction(self.webrender_document, txn);
             },
 
             ForwardedToCompositorMsg::Layout(script_traits::ScriptToCompositorMsg::HitTest(
@@ -963,27 +963,34 @@ impl<Window: WindowMethods + ?Sized> IOCompositor<Window> {
             self.embedder_coordinates.get_viewport().height() as f32,
         );
         let viewport_rect = LayoutRect::new(LayoutPoint::zero(), viewport_size);
-        let zoom_reference_frame = builder.push_reference_frame(
-            LayoutPoint::zero(),
-            SpatialId::root_reference_frame(root_pipeline),
-            TransformStyle::Flat,
-            PropertyBinding::Value(Transform3D::scale(zoom_factor, zoom_factor, 1.)),
-            ReferenceFrameKind::Transform {
-                is_2d_scale_translation: true,
-                should_snap: true,
-            },
-        );
-
-        builder.push_iframe(
-            viewport_rect,
-            viewport_rect,
-            &SpaceAndClipInfo {
-                spatial_id: zoom_reference_frame,
+        let properties = CommonItemProperties::new(viewport_rect,
+            SpaceAndClipInfo {
+                spatial_id: SpatialId::root_reference_frame(root_pipeline),
                 clip_id: ClipId::root(root_pipeline),
-            },
-            root_content_pipeline,
-            true,
+            }
         );
+        builder.push_rect(&properties, viewport_rect, ColorF::new(0.0, 0.0, 1.0, 1.0));
+        // let zoom_reference_frame = builder.push_reference_frame(
+        //     LayoutPoint::zero(),
+        //     SpatialId::root_reference_frame(root_pipeline),
+        //     TransformStyle::Flat,
+        //     PropertyBinding::Value(Transform3D::scale(zoom_factor, zoom_factor, 1.)),
+        //     ReferenceFrameKind::Transform {
+        //         is_2d_scale_translation: true,
+        //         should_snap: true,
+        //     },
+        // );
+        //
+        // builder.push_iframe(
+        //     viewport_rect,
+        //     viewport_rect,
+        //     &SpaceAndClipInfo {
+        //         spatial_id: zoom_reference_frame,
+        //         clip_id: ClipId::root(root_pipeline),
+        //     },
+        //     root_content_pipeline,
+        //     true,
+        // );
         let built_display_list = builder.finalize();
 
         // NB: We are always passing 0 as the epoch here, but this doesn't seem to
@@ -1979,10 +1986,10 @@ impl<Window: WindowMethods + ?Sized> IOCompositor<Window> {
 
         let color = servo_config::pref!(shell.background_color.rgba);
         gl.clear_color(
-            color[0] as f32,
-            color[1] as f32,
-            color[2] as f32,
-            color[3] as f32,
+            1.0,
+            0.0, 
+            0.0, 
+            1.0, 
         );
         gl.enable(gleam::gl::SCISSOR_TEST);
         gl.clear(gleam::gl::COLOR_BUFFER_BIT);

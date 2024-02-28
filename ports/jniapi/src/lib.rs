@@ -89,6 +89,8 @@ pub fn Java_org_mozilla_servoview_JNIServo_init(
             "simpleservo::gl_glue::egl",
             // Show JS errors by default.
             "script::dom::bindings::error",
+            "script::script_runtime",
+            "script::dom::bindings::codegen::Bindings::NodeListBinding",
             // Show GL errors by default.
             "canvas::webgl_thread",
             "compositing::compositor",
@@ -112,7 +114,7 @@ pub fn Java_org_mozilla_servoview_JNIServo_init(
         )
     }
 
-    info!("init");
+    info!("XXX init {:p}", android_main as *const ());
 
     redirect_stdout_to_logcat();
 

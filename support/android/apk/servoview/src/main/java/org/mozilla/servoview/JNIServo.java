@@ -7,12 +7,19 @@ package org.mozilla.servoview;
 
 import android.app.Activity;
 import android.view.Surface;
+import android.system.ErrnoException;
+import android.system.Os;
 /**
  * Maps /ports/libsimpleservo API
  */
 @SuppressWarnings("JniMissingFunction")
 public class JNIServo {
     JNIServo() {
+        try {
+            Os.setenv("RUST_BACKTRACE", "full", true);
+        } catch (ErrnoException e) {
+        }
+
         System.loadLibrary("c++_shared");
         System.loadLibrary("simpleservo");
     }

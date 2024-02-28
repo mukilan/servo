@@ -5948,7 +5948,7 @@ class CGDOMJSProxyHandler_get(CGAbstractExternMethod):
         args = [Argument('*mut JSContext', 'cx'), Argument('RawHandleObject', 'proxy'),
                 Argument('RawHandleValue', 'receiver'), Argument('RawHandleId', 'id'),
                 Argument('RawMutableHandleValue', 'vp')]
-        CGAbstractExternMethod.__init__(self, descriptor, "get", "bool", args)
+        CGAbstractExternMethod.__init__(self, descriptor, "get", "bool", args, doesNotPanic = True)
         self.descriptor = descriptor
 
     # https://heycam.github.io/webidl/#LegacyPlatformObjectGetOwnProperty
@@ -6020,12 +6020,21 @@ if !expando.is_null() {
 //"Should not have a XrayWrapper here");
 let cx = SafeJSContext::from_ptr(cx);
 
+//if ((vp.ptr as usize) %% 8) != 0 {
+//   use crate::dom::bindings::conversions::jsid_to_string;
+//   let id_str = jsid_to_string(*cx, Handle::from_raw(id));
+//   info!("XXX YYY Proxy::get: {:?}", id_str);
+//   vp.ptr = std::ptr::null_mut();
+//   return true;
+//}
+
 %s
 
 let proxy_lt = Handle::from_raw(proxy);
 let vp_lt = MutableHandle::from_raw(vp);
 let id_lt = Handle::from_raw(id);
 let receiver_lt = Handle::from_raw(receiver);
+
 
 %s
 let mut found = false;

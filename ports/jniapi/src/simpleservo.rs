@@ -258,10 +258,6 @@ pub fn init(
 
     let url = pref_url.or(blank_url).unwrap();
 
-    gl.clear_color(1.0, 1.0, 1.0, 1.0);
-    gl.clear(gl::COLOR_BUFFER_BIT);
-    gl.finish();
-
     // Initialize surfman
     let connection = Connection::new().or(Err("Failed to create connection"))?;
     let adapter = connection
@@ -285,6 +281,10 @@ pub fn init(
     let rendering_context = RenderingContext::create(&connection, &adapter, surface_type)
         .or(Err("Failed to create surface manager"))?;
 
+    gl.clear_color(0.0, 1.0, 0.0, 1.0);
+    gl.clear(gl::COLOR_BUFFER_BIT);
+    gl.finish();
+
     let window_callbacks = Rc::new(ServoWindowCallbacks {
         host_callbacks: callbacks,
         coordinates: RefCell::new(init_opts.coordinates),
@@ -304,6 +304,8 @@ pub fn init(
         None,
         CompositeTarget::Window,
     );
+
+    info!("XXXX: SET PREF INIT: {:?} base: {:?}", get_pref("js.ion.enabled"), get_pref("js.baseline.enabled"));
 
     SERVO.with(|s| {
         let mut servo_glue = ServoGlue {
