@@ -821,6 +821,7 @@ impl ServoGlue {
                     self.callbacks.host_callbacks.on_panic(reason, backtrace);
                 },
                 EmbedderMsg::ReadyToPresent => {
+                    info!("XXX Received ReadyToPresent");
                     need_present = true;
                 },
                 EmbedderMsg::Status(..) |
@@ -841,6 +842,7 @@ impl ServoGlue {
             let _ = self.perform_updates();
         }
         if need_present {
+            info!("XXX Calling present");
             self.servo.present();
         }
         Ok(())

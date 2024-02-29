@@ -548,6 +548,7 @@ impl<Window: WindowMethods + ?Sized> IOCompositor<Window> {
             },
 
             (CompositorMsg::SetFrameTree(frame_tree), ShutdownState::NotShuttingDown) => {
+                println!("XXX SetFrameTree");
                 self.set_frame_tree(&frame_tree);
                 self.send_scroll_positions_to_layout_for_pipeline(&frame_tree.pipeline.id);
             },
@@ -946,10 +947,10 @@ impl<Window: WindowMethods + ?Sized> IOCompositor<Window> {
         };
 
         let zoom_factor = self.pinch_zoom_level();
-        if zoom_factor == 1.0 {
-            transaction.set_root_pipeline(root_content_pipeline);
-            return;
-        }
+        // if zoom_factor == 1.0 {
+        //     transaction.set_root_pipeline(root_content_pipeline);
+        //     return;
+        // }
 
         // Every display list needs a pipeline, but we'd like to choose one that is unlikely
         // to conflict with our content pipelines, which start at (1, 1). (0, 0) is WebRender's
@@ -963,24 +964,25 @@ impl<Window: WindowMethods + ?Sized> IOCompositor<Window> {
             self.embedder_coordinates.get_viewport().height() as f32,
         );
         let viewport_rect = LayoutRect::new(LayoutPoint::zero(), viewport_size);
-        let properties = CommonItemProperties::new(viewport_rect,
+        let bounds = LayoutRect::new(LayoutPoint::zero(), LayoutSize::new(100.0, 100.0));
+        let properties = CommonItemProperties::new(bounds,
             SpaceAndClipInfo {
                 spatial_id: SpatialId::root_reference_frame(root_pipeline),
                 clip_id: ClipId::root(root_pipeline),
             }
         );
-        builder.push_rect(&properties, viewport_rect, ColorF::new(0.0, 0.0, 1.0, 1.0));
-        // let zoom_reference_frame = builder.push_reference_frame(
-        //     LayoutPoint::zero(),
-        //     SpatialId::root_reference_frame(root_pipeline),
-        //     TransformStyle::Flat,
-        //     PropertyBinding::Value(Transform3D::scale(zoom_factor, zoom_factor, 1.)),
-        //     ReferenceFrameKind::Transform {
-        //         is_2d_scale_translation: true,
-        //         should_snap: true,
-        //     },
-        // );
-        //
+        builder.push_rect(&properties, bounds, ColorF::new(0.0, 0.0, 1.0, 1.0));
+        let zoom_reference_frame = builder.push_reference_frame(
+            LayoutPoint::zero(),
+            SpatialId::root_reference_frame(root_pipeline),
+            TransformStyle::Flat,
+            PropertyBinding::Value(Transform3D::scale(zoom_factor, zoom_factor, 1.)),
+            ReferenceFrameKind::Transform {
+                is_2d_scale_translation: true,
+                should_snap: true,
+            },
+        );
+
         // builder.push_iframe(
         //     viewport_rect,
         //     viewport_rect,
@@ -1797,7 +1799,8 @@ impl<Window: WindowMethods + ?Sized> IOCompositor<Window> {
                 // Paint the scene.
                 // TODO(gw): Take notice of any errors the renderer returns!
                 self.clear_background();
-                self.webrender.render(size, 0 /* buffer_age */).ok();
+                let result = self.webrender.render(size, 0 /* buffer_age */);
+                info!("XXX Webrender::render() result {:?}", result);
             },
         );
 
@@ -1986,6 +1989,10 @@ impl<Window: WindowMethods + ?Sized> IOCompositor<Window> {
 
         let color = servo_config::pref!(shell.background_color.rgba);
         gl.clear_color(
+            // color[0] as f32,
+            // color[1] as f32,
+            // color[2] as f32,
+            // color[3] as f32,
             1.0,
             0.0, 
             0.0, 

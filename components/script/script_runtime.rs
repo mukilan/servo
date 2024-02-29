@@ -545,7 +545,7 @@ unsafe fn new_rt_and_cx_with_parent(
         JSJitCompilerOption::JSJITCOMPILER_ION_ENABLE,
         pref!(js.ion.enabled) as u32,
     );
-    info!("XXXX: SET PREF ion: {} base: {}", pref!(js.ion.enabled), pref!(js.baseline.enabled));
+    //info!("XXXX: SET PREF ion: {} base: {}", pref!(js.ion.enabled), pref!(js.baseline.enabled));
     cx_opts.set_asmJS_(pref!(js.asmjs.enabled));
     let wasm_enabled = pref!(js.wasm.enabled);
     cx_opts.set_wasm_(wasm_enabled);

@@ -88,7 +88,7 @@ use surfman::{GLApi, GLVersion};
 #[cfg(target_os = "linux")]
 use surfman::{NativeConnection, NativeContext};
 use webrender::{RenderApiSender, ShaderPrecacheFlags};
-use webrender_api::{DocumentId, FontInstanceKey, FontKey, ImageKey};
+use webrender_api::{ColorF, DocumentId, FontInstanceKey, FontKey, ImageKey};
 use webrender_traits::{
     WebrenderExternalImageHandlers, WebrenderExternalImageRegistry, WebrenderImageHandlerType,
 };
@@ -345,7 +345,7 @@ where
                     enable_subpixel_aa: pref!(gfx.subpixel_text_antialiasing.enabled) &&
                         !opts.debug.disable_subpixel_text_antialiasing,
                     allow_texture_swizzling: pref!(gfx.texture_swizzling.enabled),
-                    clear_color: None,
+                    clear_color: Some(ColorF::new(1.0, 1.0, 0.0, 1.0)),
                     ..Default::default()
                 },
                 None,
