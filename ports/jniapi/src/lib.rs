@@ -14,7 +14,7 @@ use std::thread;
 
 use android_logger::{self, Config, FilterBuilder};
 use jni::objects::{GlobalRef, JClass, JObject, JString, JValue, JValueOwned};
-use jni::sys::{jboolean, jfloat, jint, jstring, JNI_TRUE};
+use jni::sys::{jboolean, jfloat, jint, jobject, jstring, JNI_TRUE};
 use jni::{JNIEnv, JavaVM};
 use libc::{dup2, pipe, read};
 use log::{debug, error, info, warn};
@@ -29,7 +29,7 @@ struct HostCallbacks {
 }
 
 extern "C" {
-    fn ANativeWindow_fromSurface(env: *mut jni::sys::JNIEnv, surface: JObject) -> *mut c_void;
+    fn ANativeWindow_fromSurface(env: *mut jni::sys::JNIEnv, surface: jobject) -> *mut c_void;
 }
 
 #[no_mangle]
@@ -56,24 +56,23 @@ where
 }
 
 #[no_mangle]
-pub extern "C" fn Java_org_mozilla_servoview_JNIServo_version(
-    mut env: JNIEnv,
-    _class: JClass,
-) -> jstring {
+pub extern "C" fn Java_org_mozilla_servoview_JNIServo_version<'local>(
+    mut env: JNIEnv<'local>,
+    _class: JClass<'local>,
+) -> JString<'local> {
     let v = simpleservo::servo_version();
-    new_string(&mut env, &v).unwrap_or_else(|_str| {
-        JObject::null().into_raw()
-    })
+    env.new_string(&v)
+        .unwrap_or_else(|_str| JObject::null().into())
 }
 
 #[no_mangle]
-pub extern "C" fn Java_org_mozilla_servoview_JNIServo_init(
-    mut env: JNIEnv,
-    _: JClass,
-    _activity: JObject,
-    opts: JObject,
-    callbacks_obj: JObject,
-    surface: JObject,
+pub extern "C" fn Java_org_mozilla_servoview_JNIServo_init<'local>(
+    mut env: JNIEnv<'local>,
+    _: JClass<'local>,
+    _activity: JObject<'local>,
+    opts: JObject<'local>,
+    callbacks_obj: JObject<'local>,
+    surface: JObject<'local>,
 ) {
     let (opts, log, log_str, _gst_debug_str) = match get_options(&mut env, &opts, &surface) {
         Ok((opts, log, log_str, gst_debug_str)) => (opts, log, log_str, gst_debug_str),
@@ -124,7 +123,10 @@ pub extern "C" fn Java_org_mozilla_servoview_JNIServo_init(
     let callbacks_ref = match env.new_global_ref(callbacks_obj) {
         Ok(r) => r,
         Err(_) => {
-            throw(&mut env, "Failed to get global reference of callback argument");
+            throw(
+                &mut env,
+                "Failed to get global reference of callback argument",
+            );
             return;
         },
     };
@@ -140,9 +142,9 @@ pub extern "C" fn Java_org_mozilla_servoview_JNIServo_init(
 }
 
 #[no_mangle]
-pub extern "C" fn Java_org_mozilla_servoview_JNIServo_setBatchMode(
-    mut env: JNIEnv,
-    _: JClass,
+pub extern "C" fn Java_org_mozilla_servoview_JNIServo_setBatchMode<'local>(
+    mut env: JNIEnv<'local>,
+    _: JClass<'local>,
     batch: jboolean,
 ) {
     debug!("setBatchMode");
@@ -150,22 +152,28 @@ pub extern "C" fn Java_org_mozilla_servoview_JNIServo_setBatchMode(
 }
 
 #[no_mangle]
-pub extern "C" fn Java_org_mozilla_servoview_JNIServo_requestShutdown(mut env: JNIEnv, _class: JClass) {
+pub extern "C" fn Java_org_mozilla_servoview_JNIServo_requestShutdown<'local>(
+    mut env: JNIEnv<'local>,
+    _class: JClass<'local>,
+) {
     debug!("requestShutdown");
     call(&mut env, |s| s.request_shutdown());
 }
 
 #[no_mangle]
-pub extern "C" fn Java_org_mozilla_servoview_JNIServo_deinit(_env: JNIEnv, _class: JClass) {
+pub extern "C" fn Java_org_mozilla_servoview_JNIServo_deinit<'local>(
+    _env: JNIEnv<'local>,
+    _class: JClass<'local>,
+) {
     debug!("deinit");
     simpleservo::deinit();
 }
 
 #[no_mangle]
-pub extern "C" fn Java_org_mozilla_servoview_JNIServo_resize(
-    mut env: JNIEnv,
-    _: JClass,
-    coordinates: JObject,
+pub extern "C" fn Java_org_mozilla_servoview_JNIServo_resize<'local>(
+    mut env: JNIEnv<'local>,
+    _: JClass<'local>,
+    coordinates: JObject<'local>,
 ) {
     let coords = jni_coords_to_rust_coords(&mut env, &coordinates);
     debug!("resize {:#?}", coords);
@@ -176,16 +184,19 @@ pub extern "C" fn Java_org_mozilla_servoview_JNIServo_resize(
 }
 
 #[no_mangle]
-pub extern "C" fn Java_org_mozilla_servoview_JNIServo_performUpdates(mut env: JNIEnv, _class: JClass) {
+pub extern "C" fn Java_org_mozilla_servoview_JNIServo_performUpdates<'local>(
+    mut env: JNIEnv<'local>,
+    _class: JClass<'local>,
+) {
     debug!("performUpdates");
     call(&mut env, |s| s.perform_updates());
 }
 
 #[no_mangle]
-pub extern "C" fn Java_org_mozilla_servoview_JNIServo_loadUri(
-    mut env: JNIEnv,
-    _class: JClass,
-    url: JString,
+pub extern "C" fn Java_org_mozilla_servoview_JNIServo_loadUri<'local>(
+    mut env: JNIEnv<'local>,
+    _class: JClass<'local>,
+    url: JString<'local>,
 ) {
     debug!("loadUri");
     match env.get_string(&url) {
@@ -200,39 +211,54 @@ pub extern "C" fn Java_org_mozilla_servoview_JNIServo_loadUri(
 }
 
 #[no_mangle]
-pub extern "C" fn Java_org_mozilla_servoview_JNIServo_reload(mut env: JNIEnv, _class: JClass) {
+pub extern "C" fn Java_org_mozilla_servoview_JNIServo_reload<'local>(
+    mut env: JNIEnv<'local>,
+    _class: JClass<'local>,
+) {
     debug!("reload");
     call(&mut env, |s| s.reload());
 }
 
 #[no_mangle]
-pub extern "C" fn Java_org_mozilla_servoview_JNIServo_stop(mut env: JNIEnv, _class: JClass) {
+pub extern "C" fn Java_org_mozilla_servoview_JNIServo_stop<'local>(
+    mut env: JNIEnv<'local>,
+    _class: JClass<'local>,
+) {
     debug!("stop");
     call(&mut env, |s| s.stop());
 }
 
 #[no_mangle]
-pub extern "C" fn Java_org_mozilla_servoview_JNIServo_refresh(mut env: JNIEnv, _class: JClass) {
+pub extern "C" fn Java_org_mozilla_servoview_JNIServo_refresh<'local>(
+    mut env: JNIEnv<'local>,
+    _class: JClass<'local>,
+) {
     debug!("refresh");
     call(&mut env, |s| s.refresh());
 }
 
 #[no_mangle]
-pub extern "C" fn Java_org_mozilla_servoview_JNIServo_goBack(mut env: JNIEnv, _class: JClass) {
+pub extern "C" fn Java_org_mozilla_servoview_JNIServo_goBack<'local>(
+    mut env: JNIEnv<'local>,
+    _class: JClass<'local>,
+) {
     debug!("goBack");
     call(&mut env, |s| s.go_back());
 }
 
 #[no_mangle]
-pub extern "C" fn Java_org_mozilla_servoview_JNIServo_goForward(mut env: JNIEnv, _class: JClass) {
+pub extern "C" fn Java_org_mozilla_servoview_JNIServo_goForward<'local>(
+    mut env: JNIEnv<'local>,
+    _class: JClass<'local>,
+) {
     debug!("goForward");
     call(&mut env, |s| s.go_forward());
 }
 
 #[no_mangle]
-pub extern "C" fn Java_org_mozilla_servoview_JNIServo_scrollStart(
-    mut env: JNIEnv,
-    _: JClass,
+pub extern "C" fn Java_org_mozilla_servoview_JNIServo_scrollStart<'local>(
+    mut env: JNIEnv<'local>,
+    _: JClass<'local>,
     dx: jint,
     dy: jint,
     x: jint,
@@ -245,9 +271,9 @@ pub extern "C" fn Java_org_mozilla_servoview_JNIServo_scrollStart(
 }
 
 #[no_mangle]
-pub extern "C" fn Java_org_mozilla_servoview_JNIServo_scrollEnd(
-    mut env: JNIEnv,
-    _: JClass,
+pub extern "C" fn Java_org_mozilla_servoview_JNIServo_scrollEnd<'local>(
+    mut env: JNIEnv<'local>,
+    _: JClass<'local>,
     dx: jint,
     dy: jint,
     x: jint,
@@ -260,22 +286,24 @@ pub extern "C" fn Java_org_mozilla_servoview_JNIServo_scrollEnd(
 }
 
 #[no_mangle]
-pub extern "C" fn Java_org_mozilla_servoview_JNIServo_scroll(
-    mut env: JNIEnv,
-    _: JClass,
+pub extern "C" fn Java_org_mozilla_servoview_JNIServo_scroll<'local>(
+    mut env: JNIEnv<'local>,
+    _: JClass<'local>,
     dx: jint,
     dy: jint,
     x: jint,
     y: jint,
 ) {
     debug!("scroll");
-    call(&mut env, |s| s.scroll(dx as f32, dy as f32, x as i32, y as i32));
+    call(&mut env, |s| {
+        s.scroll(dx as f32, dy as f32, x as i32, y as i32)
+    });
 }
 
 #[no_mangle]
-pub extern "C" fn Java_org_mozilla_servoview_JNIServo_touchDown(
-    mut env: JNIEnv,
-    _: JClass,
+pub extern "C" fn Java_org_mozilla_servoview_JNIServo_touchDown<'local>(
+    mut env: JNIEnv<'local>,
+    _: JClass<'local>,
     x: jfloat,
     y: jfloat,
     pointer_id: jint,
@@ -285,9 +313,9 @@ pub extern "C" fn Java_org_mozilla_servoview_JNIServo_touchDown(
 }
 
 #[no_mangle]
-pub extern "C" fn Java_org_mozilla_servoview_JNIServo_touchUp(
-    mut env: JNIEnv,
-    _: JClass,
+pub extern "C" fn Java_org_mozilla_servoview_JNIServo_touchUp<'local>(
+    mut env: JNIEnv<'local>,
+    _: JClass<'local>,
     x: jfloat,
     y: jfloat,
     pointer_id: jint,
@@ -297,9 +325,9 @@ pub extern "C" fn Java_org_mozilla_servoview_JNIServo_touchUp(
 }
 
 #[no_mangle]
-pub extern "C" fn Java_org_mozilla_servoview_JNIServo_touchMove(
-    mut env: JNIEnv,
-    _: JClass,
+pub extern "C" fn Java_org_mozilla_servoview_JNIServo_touchMove<'local>(
+    mut env: JNIEnv<'local>,
+    _: JClass<'local>,
     x: jfloat,
     y: jfloat,
     pointer_id: jint,
@@ -309,9 +337,9 @@ pub extern "C" fn Java_org_mozilla_servoview_JNIServo_touchMove(
 }
 
 #[no_mangle]
-pub extern "C" fn Java_org_mozilla_servoview_JNIServo_touchCancel(
-    mut env: JNIEnv,
-    _: JClass,
+pub extern "C" fn Java_org_mozilla_servoview_JNIServo_touchCancel<'local>(
+    mut env: JNIEnv<'local>,
+    _: JClass<'local>,
     x: jfloat,
     y: jfloat,
     pointer_id: jint,
@@ -321,9 +349,9 @@ pub extern "C" fn Java_org_mozilla_servoview_JNIServo_touchCancel(
 }
 
 #[no_mangle]
-pub extern "C" fn Java_org_mozilla_servoview_JNIServo_pinchZoomStart(
-    mut env: JNIEnv,
-    _: JClass,
+pub extern "C" fn Java_org_mozilla_servoview_JNIServo_pinchZoomStart<'local>(
+    mut env: JNIEnv<'local>,
+    _: JClass<'local>,
     factor: jfloat,
     x: jint,
     y: jint,
@@ -335,9 +363,9 @@ pub extern "C" fn Java_org_mozilla_servoview_JNIServo_pinchZoomStart(
 }
 
 #[no_mangle]
-pub extern "C" fn Java_org_mozilla_servoview_JNIServo_pinchZoom(
-    mut env: JNIEnv,
-    _: JClass,
+pub extern "C" fn Java_org_mozilla_servoview_JNIServo_pinchZoom<'local>(
+    mut env: JNIEnv<'local>,
+    _: JClass<'local>,
     factor: jfloat,
     x: jint,
     y: jint,
@@ -347,21 +375,23 @@ pub extern "C" fn Java_org_mozilla_servoview_JNIServo_pinchZoom(
 }
 
 #[no_mangle]
-pub extern "C" fn Java_org_mozilla_servoview_JNIServo_pinchZoomEnd(
-    mut env: JNIEnv,
-    _: JClass,
+pub extern "C" fn Java_org_mozilla_servoview_JNIServo_pinchZoomEnd<'local>(
+    mut env: JNIEnv<'local>,
+    _: JClass<'local>,
     factor: jfloat,
     x: jint,
     y: jint,
 ) {
     debug!("pinchZoomEnd");
-    call(&mut env, |s| s.pinchzoom_end(factor as f32, x as u32, y as u32));
+    call(&mut env, |s| {
+        s.pinchzoom_end(factor as f32, x as u32, y as u32)
+    });
 }
 
 #[no_mangle]
-pub extern "C" fn Java_org_mozilla_servoview_JNIServo_click(
-    mut env: JNIEnv,
-    _: JClass,
+pub extern "C" fn Java_org_mozilla_servoview_JNIServo_click<'local>(
+    mut env: JNIEnv<'local>,
+    _: JClass<'local>,
     x: jfloat,
     y: jfloat,
 ) {
@@ -370,20 +400,23 @@ pub extern "C" fn Java_org_mozilla_servoview_JNIServo_click(
 }
 
 #[no_mangle]
-pub extern "C" fn Java_org_mozilla_servoview_JNIServo_pauseCompositor(mut env: JNIEnv, _: JClass) {
+pub extern "C" fn Java_org_mozilla_servoview_JNIServo_pauseCompositor<'local>(
+    mut env: JNIEnv,
+    _: JClass<'local>,
+) {
     debug!("pauseCompositor");
     call(&mut env, |s| s.pause_compositor());
 }
 
 #[no_mangle]
-pub extern "C" fn Java_org_mozilla_servoview_JNIServo_resumeCompositor(
-    mut env: JNIEnv,
-    _: JClass,
-    surface: JObject,
-    coordinates: JObject,
+pub extern "C" fn Java_org_mozilla_servoview_JNIServo_resumeCompositor<'local>(
+    mut env: JNIEnv<'local>,
+    _: JClass<'local>,
+    surface: JObject<'local>,
+    coordinates: JObject<'local>,
 ) {
     debug!("resumeCompositor");
-    let widget = unsafe { ANativeWindow_fromSurface(env.get_native_interface(), surface) };
+    let widget = unsafe { ANativeWindow_fromSurface(env.get_native_interface(), surface.as_raw()) };
     let coords = jni_coords_to_rust_coords(&mut env, &coordinates);
     match coords {
         Ok(coords) => call(&mut env, |s| s.resume_compositor(widget, coords.clone())),
@@ -392,9 +425,9 @@ pub extern "C" fn Java_org_mozilla_servoview_JNIServo_resumeCompositor(
 }
 
 #[no_mangle]
-pub extern "C" fn Java_org_mozilla_servoview_JNIServo_mediaSessionAction(
-    mut env: JNIEnv,
-    _: JClass,
+pub extern "C" fn Java_org_mozilla_servoview_JNIServo_mediaSessionAction<'local>(
+    mut env: JNIEnv<'local>,
+    _: JClass<'local>,
     action: jint,
 ) {
     debug!("mediaSessionAction");
@@ -439,15 +472,14 @@ impl HostTrait for HostCallbacks {
     fn prompt_alert(&self, message: String, _trusted: bool) {
         debug!("prompt_alert");
         let mut env = self.jvm.get_env().unwrap();
-        let Ok(string) = env.new_string(message) else {
+        let Ok(string) = new_string_as_jvalue(&mut env, &message) else {
             return;
         };
-        let string = JValue::from((&string).into());
         env.call_method(
             self.callbacks.as_obj(),
             "onAlert",
             "(Ljava/lang/String;)V",
-            &[string],
+            &[(&string).into()],
         )
         .unwrap();
     }
@@ -492,12 +524,14 @@ impl HostTrait for HostCallbacks {
         debug!("on_title_changed");
         let mut env = self.jvm.get_env().unwrap();
         let title = title.unwrap_or_else(String::new);
-        let title_string = JValue::from(&title);
+        let Ok(title_string) = new_string_as_jvalue(&mut env, &title) else {
+            return;
+        };
         env.call_method(
             self.callbacks.as_obj(),
             "onTitleChanged",
             "(Ljava/lang/String;)V",
-            &[title_string],
+            &[(&title_string).into()],
         )
         .unwrap();
     }
@@ -760,18 +794,24 @@ fn new_string(env: &mut JNIEnv, s: &str) -> Result<jstring, &'static str> {
     }
 }
 
-fn new_string_as_jvalue<'a, 'b>(env: &'a mut JNIEnv<'a>, input_string: &str) -> Result<JValueOwned<'b>, &'static str> {
+fn new_string_as_jvalue<'local>(
+    env: &mut JNIEnv<'local>,
+    input_string: &str,
+) -> Result<JValueOwned<'local>, &'static str> {
     let jstring = match env.new_string(input_string) {
         Ok(jstring) => jstring,
         Err(_) => {
             throw(env, "Couldn't create Java string");
-            return Err("Couldn't create Java string")
+            return Err("Couldn't create Java string");
         },
     };
     Ok(JValueOwned::from(jstring))
 }
 
-fn jni_coords_to_rust_coords(env: &mut JNIEnv, obj: &JObject) -> Result<Coordinates, String> {
+fn jni_coords_to_rust_coords<'local>(
+    env: &mut JNIEnv<'local>,
+    obj: &JObject<'local>,
+) -> Result<Coordinates, String> {
     let x = get_non_null_field(env, obj, "x", "I")?
         .i()
         .map_err(|_| "x not an int")? as i32;
@@ -793,12 +833,12 @@ fn jni_coords_to_rust_coords(env: &mut JNIEnv, obj: &JObject) -> Result<Coordina
     Ok(Coordinates::new(x, y, width, height, fb_width, fb_height))
 }
 
-fn get_field<'a>(
-    env: &'a mut JNIEnv,
-    obj: &JObject<'a>,
+fn get_field<'local>(
+    env: &mut JNIEnv<'local>,
+    obj: &JObject<'local>,
     field: &str,
     type_: &str,
-) -> Result<Option<JValueOwned<'a>>, String> {
+) -> Result<Option<JValueOwned<'local>>, String> {
     let Ok(class) = env.get_object_class(obj) else {
         return Err("Can't get object class".to_owned());
     };
@@ -812,34 +852,40 @@ fn get_field<'a>(
         .or_else(|_| Err(format!("Can't find `{}` field", field)))
 }
 
-fn get_non_null_field<'a>(
-    env: &'a mut JNIEnv,
-    obj: &JObject<'a>,
+fn get_non_null_field<'local>(
+    env: &mut JNIEnv<'local>,
+    obj: &JObject<'local>,
     field: &str,
     type_: &str,
-) -> Result<JValueOwned<'a>, String> {
+) -> Result<JValueOwned<'local>, String> {
     match get_field(env, obj, field, type_)? {
         None => Err(format!("Field {} is null", field)),
         Some(f) => Ok(f),
     }
 }
 
-fn get_field_as_string(env: &mut JNIEnv, obj: &JObject, field: &str) -> Result<Option<String>, String> {
+fn get_field_as_string<'local>(
+    env: &mut JNIEnv<'local>,
+    obj: &JObject<'local>,
+    field: &str,
+) -> Result<Option<String>, String> {
     let string = {
         let value = get_field(env, obj, field, "Ljava/lang/String;")?;
         let Some(value) = value else {
             return Ok(None);
         };
-        value.l().map_err(|_| format!("field `{}` is not an Object", field))?
+        value
+            .l()
+            .map_err(|_| format!("field `{}` is not an Object", field))?
     };
 
     Ok(env.get_string((&string).into()).map(|s| s.into()).ok())
 }
 
-fn get_options(
-    env: &mut JNIEnv,
-    opts: &JObject,
-    surface: &JObject,
+fn get_options<'local>(
+    env: &mut JNIEnv<'local>,
+    opts: &JObject<'local>,
+    surface: &JObject<'local>,
 ) -> Result<(InitOptions, bool, Option<String>, Option<String>), String> {
     let args = get_field_as_string(env, opts, "args")?;
     let url = get_field_as_string(env, opts, "url")?;
@@ -867,7 +913,8 @@ fn get_options(
         None => None,
     };
 
-    let native_window = unsafe { ANativeWindow_fromSurface(env.get_native_interface(), *surface) };
+    let native_window =
+        unsafe { ANativeWindow_fromSurface(env.get_native_interface(), surface.as_raw()) };
 
     // FIXME: enable JIT compilation on Android after the startup crash issue (#31134) is fixed.
     let mut prefs = HashMap::new();
