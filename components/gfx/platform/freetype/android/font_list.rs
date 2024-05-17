@@ -6,7 +6,7 @@ use std::fs::File;
 use std::io::Read;
 use std::path::Path;
 
-use log::warn;
+use log::{error, warn};
 use malloc_size_of_derive::MallocSizeOf;
 use serde::{Deserialize, Serialize};
 use style::values::computed::{
@@ -37,10 +37,14 @@ impl LocalFontIdentifier {
 
     pub(crate) fn read_data_from_file(&self) -> Vec<u8> {
         let mut bytes = Vec::new();
-        File::open(Path::new(&*self.path))
-            .expect("Couldn't open font file!")
-            .read_to_end(&mut bytes)
-            .unwrap();
+        match File::open(Path::new(&*self.path)) {
+            Ok(mut file) => {
+                if let Err(error) = file.read_to_end(&mut bytes) {
+                    error!("Could not read from font file: {} {}", self.path, error);
+                }
+            },
+            Err(error) => error!("Could not open font file: {} {}", self.path, error),
+        };
         bytes
     }
 }
