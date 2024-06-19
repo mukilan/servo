@@ -2125,7 +2125,7 @@ impl ScriptThread {
                 FocusIFrame(id, ..) => Some(id),
                 WebDriverScriptCommand(id, ..) => Some(id),
                 TickAllAnimations(id, ..) => Some(id),
-                WebFontLoaded(id) => Some(id),
+                WebFontLoaded(id, ..) => Some(id),
                 DispatchIFrameLoadEvent {
                     target: _,
                     parent: id,
@@ -2325,8 +2325,8 @@ impl ScriptThread {
             ConstellationControlMsg::WebDriverScriptCommand(pipeline_id, msg) => {
                 self.handle_webdriver_msg(pipeline_id, msg)
             },
-            ConstellationControlMsg::WebFontLoaded(pipeline_id) => {
-                self.handle_web_font_loaded(pipeline_id)
+            ConstellationControlMsg::WebFontLoaded(pipeline_id, success) => {
+                self.handle_web_font_loaded(pipeline_id, success)
             },
             ConstellationControlMsg::DispatchIFrameLoadEvent {
                 target: browsing_context_id,
@@ -3294,7 +3294,7 @@ impl ScriptThread {
     }
 
     /// Handles a Web font being loaded. Does nothing if the page no longer exists.
-    fn handle_web_font_loaded(&self, pipeline_id: PipelineId) {
+    fn handle_web_font_loaded(&self, pipeline_id: PipelineId, _success: bool) {
         let Some(document) = self.documents.borrow().find_document(pipeline_id) else {
             warn!("Web font loaded in closed pipeline {}.", pipeline_id);
             return;

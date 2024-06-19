@@ -602,12 +602,10 @@ impl LayoutThread {
 
         let locked_script_channel = Mutex::new(self.script_chan.clone());
         let pipeline_id = self.id;
-        let web_font_finished_loading_callback = move |succeeded: bool| {
-            if succeeded {
-                let _ = locked_script_channel
-                    .lock()
-                    .send(ConstellationControlMsg::WebFontLoaded(pipeline_id));
-            }
+        let web_font_finished_loading_callback = move |success| {
+            let _ = locked_script_channel
+                .lock()
+                .send(ConstellationControlMsg::WebFontLoaded(pipeline_id, success));
         };
 
         // Find all font-face rules and notify the font cache of them.
@@ -623,7 +621,7 @@ impl LayoutThread {
         if self.debug.load_webfonts_synchronously && newly_loading_font_count > 0 {
             let _ = self
                 .script_chan
-                .send(ConstellationControlMsg::WebFontLoaded(self.id));
+                .send(ConstellationControlMsg::WebFontLoaded(self.id, true));
         }
     }
 
