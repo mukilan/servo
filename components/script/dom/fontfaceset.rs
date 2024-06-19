@@ -30,7 +30,6 @@ impl FontFaceSet {
 
     pub fn fulfill_ready_promise_if_needed(&self) {
         if !self.promise.is_fulfilled() {
-            println!("Fulfilling font face set promise");
             let _ac = enter_realm(&*self.promise);
             self.promise.resolve_native(self);
         }
