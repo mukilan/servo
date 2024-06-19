@@ -1,3 +1,7 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
+
 /*
 dictionary FontFaceSetLoadEventInit : EventInit {
   sequence<FontFace> fontfaces = [];
@@ -14,6 +18,7 @@ interface FontFaceSetLoadEvent : Event {
 enum FontFaceSetLoadStatus { "loading" , "loaded" };
 */
 
+// https://drafts.csswg.org/css-font-loading/#FontFaceSet-interface
 [Exposed=(Window,Worker)]
 interface FontFaceSet : EventTarget {
   // constructor(sequence<FontFace> initialFaces);
