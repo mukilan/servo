@@ -3303,6 +3303,7 @@ impl ScriptThread {
         // TODO: This should only dirty nodes that are waiting for a web font to finish loading!
         document.dirty_all_nodes();
         document.window().add_pending_reflow();
+        self.rendering_opportunity(pipeline_id);
     }
 
     /// Handles a worklet being loaded. Does nothing if the page no longer exists.
