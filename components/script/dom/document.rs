@@ -5370,7 +5370,8 @@ impl DocumentMethods for Document {
     }
 
     fn Fonts(&self) -> DomRoot<FontFaceSet> {
-        self.fonts.or_init(|| FontFaceSet::new(&*self.global(), None))
+        self.fonts
+            .or_init(|| FontFaceSet::new(&*self.global(), None))
     }
 }
 

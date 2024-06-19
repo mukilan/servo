@@ -1998,7 +1998,6 @@ impl Window {
         // that this pipeline is ready to write the image (from the script thread
         // perspective at least).
         if self.prepare_for_screenshot && for_display {
-
             // Checks if the html element has reftest-wait attribute present.
             // See http://testthewebforward.org/docs/reftests.html
             let html_element = document.GetDocumentElement();

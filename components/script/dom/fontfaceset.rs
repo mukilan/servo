@@ -1,13 +1,15 @@
+use std::rc::Rc;
+
+use dom_struct::dom_struct;
+use js::rust::HandleObject;
+
 use crate::dom::bindings::codegen::Bindings::FontFaceSetBinding::FontFaceSetMethods;
 use crate::dom::bindings::reflector::reflect_dom_object_with_proto;
 use crate::dom::bindings::root::DomRoot;
-use crate::dom::globalscope::GlobalScope;
 use crate::dom::eventtarget::EventTarget;
+use crate::dom::globalscope::GlobalScope;
 use crate::dom::promise::Promise;
 use crate::realms::enter_realm;
-use dom_struct::dom_struct;
-use js::rust::HandleObject;
-use std::rc::Rc;
 
 #[dom_struct]
 pub struct FontFaceSet {
@@ -38,6 +40,6 @@ impl FontFaceSet {
 
 impl FontFaceSetMethods for FontFaceSet {
     fn Ready(&self) -> Rc<Promise> {
-       self.promise.clone()
+        self.promise.clone()
     }
 }

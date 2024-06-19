@@ -686,12 +686,12 @@ impl LayoutThread {
 
         let locked_script_channel = Mutex::new(self.script_chan.clone());
         let pipeline_id = self.id;
-        let web_font_finished_loading_callback = move |succeeded: bool| {
-            let _ = locked_script_channel
-                .lock()
-                .unwrap()
-                .send(ConstellationControlMsg::WebFontLoaded(pipeline_id, succeeded));
-        };
+        let web_font_finished_loading_callback =
+            move |succeeded: bool| {
+                let _ = locked_script_channel.lock().unwrap().send(
+                    ConstellationControlMsg::WebFontLoaded(pipeline_id, succeeded),
+                );
+            };
 
         // Find all font-face rules and notify the FontContext of them.
         // GWTODO: Need to handle unloading web fonts.
