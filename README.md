@@ -12,7 +12,7 @@ For more detailed build instructions, see the Servo book under [Setting up your 
 
 ### macOS
 
-- Download and install [`python`](https://www.python.org/downloads/macos/), [Xcode](https://developer.apple.com/xcode/), and [`brew`](https://brew.sh/)
+- Download and install [`python`](https://www.python.org/downloads/macos/), [Xcode](https://developer.apple.com/xcode/) at least 15.2, and [`brew`](https://brew.sh/)
 - Install `rustup`: `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh`
 - Restart your shell to make sure `cargo` is available
 - Install the other dependencies: `./mach bootstrap`

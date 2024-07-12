@@ -79,6 +79,9 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha }}
       - name: Run sccache-cache
         uses: mozilla-actions/sccache-action@v0.0.4
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: "15.2"
       - name: Install taplo
         uses: baptiste0928/cargo-install@v3
         with:
