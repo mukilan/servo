@@ -668,7 +668,7 @@ class CommandBase(object):
         if not os.path.exists(env['AAR_OUT_DIR']):
             os.makedirs(env['AAR_OUT_DIR'])
 
-        env['LIBZ_SYS_STATIC'] = "1"
+        #env['LIBZ_SYS_STATIC'] = "1"
         env['TARGET_PKG_CONFIG_SYSROOT_DIR'] = path.join(llvm_toolchain, 'sysroot')
 
     def build_ohos_env_if_needed(self, env: Dict[str, str]):
