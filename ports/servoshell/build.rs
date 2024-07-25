@@ -58,7 +58,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         // passes to clang is at the very end of the command line
         // which in turn causes 'undefined reference to hidden symbol' errors
         // in libmozjs-sys*.rlib when linking it to `servoshell.so`
-        // println!("cargo:rustc-link-lib=static=z");
+        println!("cargo:rustc-link-lib=static=z");
 
         generate_egl_bindings(out);
 

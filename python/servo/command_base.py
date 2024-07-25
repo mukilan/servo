@@ -791,7 +791,7 @@ class CommandBase(object):
         env[f'PKG_CONFIG_PATH_{rust_target_triple}'] = pkg_config_path
 
         # bindgen / libclang-sys
-        env["LIBCLANG_PATH"] = path.join(llvm_toolchain, "lib")
+        env["LIBCLANG_PATH"] = path.join(llvm_toolchain, "lib64")
         env["CLANG_PATH"] = ndk_clangxx
         env[f'CXXSTDLIB_{clang_target_triple_underscore}'] = "c++"
         bindgen_extra_clangs_args_var = f'BINDGEN_EXTRA_CLANG_ARGS_{rust_target_triple}'
