@@ -633,7 +633,7 @@ class CommandBase(object):
         env['TARGET_STRIP'] = to_ndk_bin("llvm-strip")
         env['RUST_FONTCONFIG_DLOPEN'] = "on"
 
-        env["LIBCLANG_PATH"] = path.join(llvm_toolchain, "lib64")
+        env["LIBCLANG_PATH"] = path.join(llvm_toolchain, "lib")
         env["CLANG_PATH"] = to_ndk_bin("clang")
 
         # A cheat-sheet for some of the build errors caused by getting the search path wrong...
@@ -668,6 +668,7 @@ class CommandBase(object):
         if not os.path.exists(env['AAR_OUT_DIR']):
             os.makedirs(env['AAR_OUT_DIR'])
 
+        env['LIBZ_SYS_STATIC'] = "1"
         env['TARGET_PKG_CONFIG_SYSROOT_DIR'] = path.join(llvm_toolchain, 'sysroot')
 
     def build_ohos_env_if_needed(self, env: Dict[str, str]):

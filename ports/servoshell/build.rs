@@ -54,6 +54,12 @@ fn main() -> Result<(), Box<dyn Error>> {
             .file("platform/macos/count_threads.c")
             .compile("count_threads");
     } else if target_os == "android" {
+        // Needed by mozjs. Without this, the `-lz` from libz-sys that rustc
+        // passes to clang is at the very end of the command line
+        // which in turn causes 'undefined reference to hidden symbol' errors
+        // in libmozjs-sys*.rlib when linking it to `servoshell.so`
+        println!("cargo:rustc-link-lib=static=z");
+
         generate_egl_bindings(out);
 
         // FIXME: We need this workaround since jemalloc-sys still links
