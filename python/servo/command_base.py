@@ -633,7 +633,7 @@ class CommandBase(object):
         env['TARGET_STRIP'] = to_ndk_bin("llvm-strip")
         env['RUST_FONTCONFIG_DLOPEN'] = "on"
 
-        env["LIBCLANG_PATH"] = path.join(llvm_toolchain, "lib")
+        env["LIBCLANG_PATH"] = path.join(llvm_toolchain, "lib64")
         env["CLANG_PATH"] = to_ndk_bin("clang")
 
         # A cheat-sheet for some of the build errors caused by getting the search path wrong...
@@ -791,7 +791,7 @@ class CommandBase(object):
         env[f'PKG_CONFIG_PATH_{rust_target_triple}'] = pkg_config_path
 
         # bindgen / libclang-sys
-        env["LIBCLANG_PATH"] = path.join(llvm_toolchain, "lib64")
+        env["LIBCLANG_PATH"] = path.join(llvm_toolchain, "lib")
         env["CLANG_PATH"] = ndk_clangxx
         env[f'CXXSTDLIB_{clang_target_triple_underscore}'] = "c++"
         bindgen_extra_clangs_args_var = f'BINDGEN_EXTRA_CLANG_ARGS_{rust_target_triple}'
