@@ -927,18 +927,15 @@ mod test {
         .iter()
         .collect();
 
-        let identifier = FontIdentifier::Web(ServoUrl::from_file_path(path.clone()).unwrap());
+        let url = ServoUrl::from_file_path(path.clone()).unwrap();
+        let identifier = FontIdentifier::Web(url);
         let file = File::open(path).unwrap();
         let data: Arc<Vec<u8>> = Arc::new(file.bytes().map(|b| b.unwrap()).collect());
         let platform_font =
             PlatformFont::new_from_data(identifier.clone(), data.clone(), 0, None).unwrap();
 
-        let template = FontTemplate {
-            identifier,
-            descriptor: platform_font.descriptor(),
-            data: Some(data),
-            stylesheet: None,
-        };
+        let template = FontTemplate::new_for_remote_web_font(url, platform_font.descriptor(), None);
+
         let descriptor = FontDescriptor {
             weight: FontWeight::normal(),
             stretch: FontStretch::hundred(),
