@@ -13,6 +13,7 @@ use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use style::stylesheets::DocumentStyleSheet;
 use style::values::computed::{FontStyle, FontWeight};
+use tracing::{span, Level};
 use webrender_api::{FontInstanceFlags, FontInstanceKey, FontKey};
 
 use crate::font::FontDescriptor;
@@ -159,6 +160,7 @@ impl FontStore {
         self.web_fonts_loading.iter().map(|(_, count)| count).sum()
     }
 
+    #[tracing::instrument(skip(self), fields(servo_profiling = true))]
     pub(crate) fn get_or_initialize_font_data(
         &mut self,
         identifier: &FontIdentifier,
@@ -194,6 +196,7 @@ pub struct WebRenderFontStore {
 pub(crate) type CrossThreadWebRenderFontStore = Arc<RwLock<WebRenderFontStore>>;
 
 impl WebRenderFontStore {
+    #[tracing::instrument(skip(self, font_context), fields(servo_profiling = true))]
     pub(crate) fn get_font_instance(
         &mut self,
         font_context: &FontContext,
@@ -204,19 +207,27 @@ impl WebRenderFontStore {
         let webrender_font_key_map = &mut self.webrender_font_key_map;
         let identifier = font_template.identifier().clone();
 
-        let font_key = *webrender_font_key_map
+        let font_key = {
+            let span = span!(Level::TRACE, "gfi:get_web_font", servo_profiling = true);
+            let _enter = span.enter();
+            *webrender_font_key_map
             .entry(identifier.clone())
             .or_insert_with(|| {
                 let data = font_context.get_font_data(&identifier);
                 font_context.get_web_font(data, identifier.index())
-            });
-
-        *self
-            .webrender_font_instance_map
-            .entry((font_key, pt_size))
-            .or_insert_with(|| {
-                font_context.get_web_font_instance(font_key, pt_size.to_f32_px(), flags)
             })
+        };
+
+        {
+            let span = span!(Level::TRACE, "gfi:get_web_font_instance", servo_profiling = true);
+            let _enter = span.enter();
+            *self
+                .webrender_font_instance_map
+                .entry((font_key, pt_size))
+                .or_insert_with(|| {
+                    font_context.get_web_font_instance(font_key, pt_size.to_f32_px(), flags)
+                })
+        }
     }
 
     pub(crate) fn remove_all_fonts(&mut self) -> (Vec<FontKey>, Vec<FontInstanceKey>) {

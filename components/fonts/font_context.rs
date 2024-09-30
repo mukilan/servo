@@ -29,6 +29,7 @@ use style::shared_lock::SharedRwLockReadGuard;
 use style::stylesheets::{CssRule, DocumentStyleSheet, FontFaceRule, StylesheetInDocument};
 use style::values::computed::font::{FamilyName, FontFamilyNameSyntax, SingleFontFamily};
 use style::Atom;
+use tracing::{span, Level};
 use url::Url;
 use webrender_api::{FontInstanceFlags, FontInstanceKey, FontKey};
 use webrender_traits::{ScriptToCompositorMsg, WebRenderScriptApi};
@@ -138,6 +139,7 @@ impl FontContext {
     /// Returns a `FontGroup` representing fonts which can be used for layout, given the `style`.
     /// Font groups are cached, so subsequent calls with the same `style` will return a reference
     /// to an existing `FontGroup`.
+    #[tracing::instrument(skip(self), fields(servo_profiling = true))]
     pub fn font_group(&self, style: ServoArc<FontStyleStruct>) -> Arc<RwLock<FontGroup>> {
         let font_size = style.font_size.computed_size().into();
         self.font_group_with_size(style, font_size)
@@ -151,10 +153,16 @@ impl FontContext {
         size: Au,
     ) -> Arc<RwLock<FontGroup>> {
         let cache_key = FontGroupCacheKey { size, style };
-        if let Some(font_group) = self.resolved_font_groups.read().get(&cache_key) {
-            return font_group.clone();
+        {
+            let span = span!(Level::TRACE, "fg:cache_hit", servo_profiling = true);
+            let _span = span.enter();
+            if let Some(font_group) = self.resolved_font_groups.read().get(&cache_key) {
+                return font_group.clone();
+            }
         }
 
+        let span = span!(Level::TRACE, "fg:cache_miss", servo_profiling = true);
+        let _span = span.enter();
         let mut descriptor = FontDescriptor::from(&*cache_key.style);
         descriptor.pt_size = size;
 
@@ -179,6 +187,7 @@ impl FontContext {
         )
     }
 
+    #[tracing::instrument(skip(self), fields(servo_profiling = true))]
     fn get_font_maybe_synthesizing_small_caps(
         &self,
         font_template: FontTemplateRef,
@@ -207,14 +216,21 @@ impl FontContext {
             font_descriptor: font_descriptor.clone(),
         };
 
-        if let Some(font) = self.fonts.read().get(&cache_key).cloned() {
-            return font;
+        {
+            let span = span!(Level::TRACE, "gfmssc:cache_hit", servo_profiling = true);
+            let _enter = span.enter();
+            if let Some(font) = self.fonts.read().get(&cache_key).cloned() {
+                return font;
+            }
         }
 
         debug!(
             "FontContext::font cache miss for font_template={:?} font_descriptor={:?}",
             font_template, font_descriptor
         );
+
+        let span = span!(Level::TRACE, "gfmssc:cache_miss", servo_profiling = true);
+        let _enter = span.enter();
 
         // TODO: Inserting `None` into the cache here is a bit bogus. Instead we should somehow
         // mark this template as invalid so it isn't tried again.
@@ -268,6 +284,7 @@ impl FontContext {
 
     /// Create a `Font` for use in layout calculations, from a `FontTemplateData` returned by the
     /// cache thread and a `FontDescriptor` which contains the styling parameters.
+    #[tracing::instrument(skip(self), fields(servo_profiling = true))]
     fn create_font(
         &self,
         font_template: FontTemplateRef,
@@ -283,18 +300,24 @@ impl FontContext {
 
         font.font_key = match font_template.identifier() {
             FontIdentifier::Local(_) | FontIdentifier::Mock(_) => {
+                let span = span!(Level::TRACE, "cf:system", servo_profiling = true);
+                let _enter = span.enter();
                 self.system_font_service_proxy.get_system_font_instance(
                     font_template.identifier(),
                     font_descriptor.pt_size,
                     font.webrender_font_instance_flags(),
                 )
             },
-            FontIdentifier::Web(_) => self.webrender_font_store.write().get_font_instance(
-                self,
-                font_template.clone(),
-                font_descriptor.pt_size,
-                font.webrender_font_instance_flags(),
-            ),
+            FontIdentifier::Web(_) => {
+                let span = span!(Level::TRACE, "cf:web", servo_profiling = true);
+                let _enter = span.enter();
+                self.webrender_font_store.write().get_font_instance(
+                    self,
+                    font_template.clone(),
+                    font_descriptor.pt_size,
+                    font.webrender_font_instance_flags(),
+                )
+            },
         };
 
         Ok(Arc::new(font))

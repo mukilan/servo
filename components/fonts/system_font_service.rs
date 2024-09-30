@@ -156,6 +156,8 @@ impl SystemFontService {
                         result_sender.send(self.get_font_templates(font_descriptor, font_family));
                 },
                 SystemFontServiceMessage::GetFontInstance(identifier, pt_size, flags, result) => {
+                    let span = span!(Level::TRACE, "GetFontInstance", servo_profiling = true);
+                    let _span = span.enter();
                     let _ = result.send(self.get_font_instance(identifier, pt_size, flags));
                 },
                 SystemFontServiceMessage::Ping => (),
@@ -233,6 +235,7 @@ impl SystemFontService {
             .unwrap_or_default()
     }
 
+    #[tracing::instrument(skip(self), fields(servo_profiling = true))]
     fn get_font_instance(
         &mut self,
         identifier: FontIdentifier,
