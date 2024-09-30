@@ -19,10 +19,11 @@ use servo::servo_config::pref;
 use servo::Servo;
 use surfman::GLApi;
 use webxr::glwindow::GlWindowDiscovery;
+use webxr_api::MainThreadWaker as EventLoopWaker;
 #[cfg(target_os = "windows")]
 use webxr::openxr::{AppInfo, OpenXrDiscovery};
 use winit::event::WindowEvent;
-use winit::event_loop::EventLoopWindowTarget;
+use winit::event_loop::ActiveEventLoop;
 use winit::window::WindowId;
 
 use super::events_loop::{EventsLoop, WakerEvent};
@@ -36,7 +37,7 @@ use crate::parser::get_default_url;
 
 pub struct App {
     servo: Option<Servo<dyn WindowPortsMethods>>,
-    webviews: RefCell<WebViewManager<dyn WindowPortsMethods>>,
+    webviews: RefCell<Option<WebViewManager<dyn WindowPortsMethods>>>,
     event_queue: RefCell<Vec<EmbedderEvent>>,
     suspended: Cell<bool>,
     windows: HashMap<WindowId, Rc<dyn WindowPortsMethods>>,
@@ -59,47 +60,39 @@ enum PumpResult {
     },
 }
 
-impl App {
-    pub fn run(
-        no_native_titlebar: bool,
-        device_pixel_ratio_override: Option<f32>,
-        user_agent: Option<String>,
-        url: Option<String>,
-    ) {
-        let events_loop = EventsLoop::new(opts::get().headless, opts::get().output_file.is_some())
-            .expect("Failed to create events loop");
+#[derive(Clone)]
+struct InitOptions {
+    no_native_titlebar: bool,
+    device_pixel_ratio_override: Option<f32>,
+    user_agent: Option<String>,
+    url: Option<String>,
+}
 
+impl App {
+    fn handle_init_event(&mut self, event_loop: Option<&winit::event_loop::ActiveEventLoop>, ev_waker: Box<dyn EventLoopWaker>, options: InitOptions) {
         // Implements window methods, used by compositor.
         let window = if opts::get().headless {
             // GL video rendering is not supported on headless windows.
             set_pref!(media.glvideo.enabled, false);
             headless_window::Window::new(
                 opts::get().initial_window_size,
-                device_pixel_ratio_override,
+                options.device_pixel_ratio_override,
             )
         } else {
             Rc::new(headed_window::Window::new(
                 opts::get().initial_window_size,
-                &events_loop,
-                no_native_titlebar,
-                device_pixel_ratio_override,
+                event_loop.unwrap(),
+                options.no_native_titlebar,
+                options.device_pixel_ratio_override,
             ))
         };
 
         // Handle browser state.
         let webviews = WebViewManager::new(window.clone());
-        let initial_url = get_default_url(url.as_deref(), env::current_dir().unwrap(), |path| {
+        *self.webviews.borrow_mut() = Some(webviews);
+        let initial_url = get_default_url(options.url.as_deref(), env::current_dir().unwrap(), |path| {
             fs::metadata(path).is_ok()
         });
-
-        let mut app = App {
-            event_queue: RefCell::new(vec![]),
-            webviews: RefCell::new(webviews),
-            servo: None,
-            suspended: Cell::new(false),
-            windows: HashMap::new(),
-            minibrowser: None,
-        };
 
         if opts::get().minibrowser && window.winit_window().is_some() {
             // Make sure the gl context is made current.
@@ -115,104 +108,143 @@ impl App {
             rendering_context.make_gl_context_current().unwrap();
             debug_assert_eq!(webrender_gl.get_error(), gleam::gl::NO_ERROR);
 
-            app.minibrowser = Some(
-                Minibrowser::new(&rendering_context, &events_loop, initial_url.clone()).into(),
+            self.minibrowser = Some(
+                Minibrowser::new(&rendering_context, event_loop.unwrap(), initial_url.clone()).into(),
             );
         }
 
-        if let Some(mut minibrowser) = app.minibrowser() {
+        if let Some(mut minibrowser) = self.minibrowser() {
             // Servo is not yet initialised, so there is no `servo_framebuffer_id`.
             minibrowser.update(
                 window.winit_window().unwrap(),
-                &mut app.webviews.borrow_mut(),
+                self.webviews.borrow_mut().as_mut().unwrap(),
                 None,
                 "init",
             );
             window.set_toolbar_height(minibrowser.toolbar_height);
         }
 
+        let surfman = window.rendering_context();
+
+        let openxr_discovery = if pref!(dom.webxr.openxr.enabled) && !opts::get().headless {
+            #[cfg(target_os = "windows")]
+            let openxr = {
+                let app_info = AppInfo::new("Servoshell", 0, "Servo", 0);
+                Some(XrDiscovery::OpenXr(OpenXrDiscovery::new(None, app_info)))
+            };
+            #[cfg(not(target_os = "windows"))]
+            let openxr = None;
+
+            openxr
+        } else {
+            None
+        };
+
+        let glwindow_discovery =
+        if pref!(dom.webxr.glwindow.enabled) && !opts::get().headless {
+            let window = window.clone();
+            // This should be safe because run_forever does, in fact,
+            // run forever. The event loop window target doesn't get
+            // moved, and does outlast this closure, and we won't
+            // ever try to make use of it once shutdown begins and
+            // it stops being valid.
+
+            let w = unsafe {
+                std::mem::transmute::<
+                    &ActiveEventLoop,
+                    &'static ActiveEventLoop
+                    >(event_loop.unwrap())
+            };
+            let factory = Box::new(move || Ok(window.new_glwindow(w)));
+            Some(XrDiscovery::GlWindow(GlWindowDiscovery::new(
+                surfman.connection(),
+                surfman.adapter(),
+                surfman.context_attributes(),
+                factory,
+            )))
+        } else {
+            None
+        };
+
+        let xr_discovery = openxr_discovery.or(glwindow_discovery);
+
+        let window = window.clone();
+        // Implements embedder methods, used by libservo and constellation.
+        let embedder = Box::new(EmbedderCallbacks::new(ev_waker, xr_discovery));
+
+        let composite_target = if self.minibrowser.is_some() {
+            CompositeTarget::Fbo
+        } else {
+            CompositeTarget::Window
+        };
+        let servo_data = Servo::new(
+            embedder,
+            window.clone(),
+            options.user_agent.clone(),
+            composite_target,
+        );
+        let mut servo = servo_data.servo;
+
+        servo.handle_events(vec![EmbedderEvent::NewWebView(
+            initial_url.to_owned(),
+            servo_data.browser_id,
+        )]);
+        servo.setup_logging();
+
+        self.windows.insert(window.id(), window.clone());
+        self.servo = Some(servo);
+    }
+
+
+    pub fn run(
+        no_native_titlebar: bool,
+        device_pixel_ratio_override: Option<f32>,
+        user_agent: Option<String>,
+        url: Option<String>,
+    ) {
+        let events_loop = EventsLoop::new(opts::get().headless, opts::get().output_file.is_some())
+            .expect("Failed to create events loop");
+
+        let mut app = App {
+            event_queue: RefCell::new(vec![]),
+            webviews: RefCell::new(None),
+            servo: None,
+            suspended: Cell::new(false),
+            windows: HashMap::new(),
+            minibrowser: None,
+        };
+
         let t_start = Instant::now();
         let mut t = t_start;
         let ev_waker = events_loop.create_event_loop_waker();
+
+        let init_options = InitOptions {
+            device_pixel_ratio_override,
+            url,
+            no_native_titlebar,
+            user_agent,
+        };
+
         events_loop.run_forever(move |event, w, control_flow| {
             let now = Instant::now();
             trace_winit_event!(event, "@{:?} (+{:?}) {event:?}", now - t_start, now - t);
             t = now;
+
             if let winit::event::Event::NewEvents(winit::event::StartCause::Init) = event {
-                let surfman = window.rendering_context();
-
-                let openxr_discovery = if pref!(dom.webxr.openxr.enabled) && !opts::get().headless {
-                    #[cfg(target_os = "windows")]
-                    let openxr = {
-                        let app_info = AppInfo::new("Servoshell", 0, "Servo", 0);
-                        Some(XrDiscovery::OpenXr(OpenXrDiscovery::new(None, app_info)))
-                    };
-                    #[cfg(not(target_os = "windows"))]
-                    let openxr = None;
-
-                    openxr
-                } else {
-                    None
-                };
-
-                let glwindow_discovery =
-                    if pref!(dom.webxr.glwindow.enabled) && !opts::get().headless {
-                        let window = window.clone();
-                        // This should be safe because run_forever does, in fact,
-                        // run forever. The event loop window target doesn't get
-                        // moved, and does outlast this closure, and we won't
-                        // ever try to make use of it once shutdown begins and
-                        // it stops being valid.
-                        let w = unsafe {
-                            std::mem::transmute::<
-                                &EventLoopWindowTarget<WakerEvent>,
-                                &'static EventLoopWindowTarget<WakerEvent>,
-                            >(w.unwrap())
-                        };
-                        let factory = Box::new(move || Ok(window.new_glwindow(w)));
-                        Some(XrDiscovery::GlWindow(GlWindowDiscovery::new(
-                            surfman.connection(),
-                            surfman.adapter(),
-                            surfman.context_attributes(),
-                            factory,
-                        )))
-                    } else {
-                        None
-                    };
-
-                let xr_discovery = openxr_discovery.or(glwindow_discovery);
-
-                let window = window.clone();
-                // Implements embedder methods, used by libservo and constellation.
-                let embedder = Box::new(EmbedderCallbacks::new(ev_waker.clone(), xr_discovery));
-
-                let composite_target = if app.minibrowser.is_some() {
-                    CompositeTarget::Fbo
-                } else {
-                    CompositeTarget::Window
-                };
-                let servo_data = Servo::new(
-                    embedder,
-                    window.clone(),
-                    user_agent.clone(),
-                    composite_target,
-                );
-                let mut servo = servo_data.servo;
-
-                servo.handle_events(vec![EmbedderEvent::NewWebView(
-                    initial_url.to_owned(),
-                    servo_data.browser_id,
-                )]);
-                servo.setup_logging();
-
-                app.windows.insert(window.id(), window.clone());
-                app.servo = Some(servo);
+                app.handle_init_event(w, ev_waker.clone(), init_options.clone());
             }
 
             // If self.servo is None here, it means that we're in the process of shutting down,
             // let's ignore events.
             if app.servo.is_none() {
                 return;
+            }
+
+            let mut window = None;
+            let mut winit_window = None;
+            if let winit::event::Event::WindowEvent { window_id, .. } = event {
+                window = app.windows.get(&window_id).cloned();
+                winit_window = window.as_ref().and_then(|w| w.winit_window());
             }
 
             if let winit::event::Event::WindowEvent {
@@ -227,12 +259,12 @@ impl App {
                 // loop or servoshell may become unresponsive! (servo#30312)
                 if let Some(mut minibrowser) = app.minibrowser() {
                     minibrowser.update(
-                        window.winit_window().unwrap(),
-                        &mut app.webviews.borrow_mut(),
+                        winit_window.unwrap(),
+                        app.webviews.borrow_mut().as_mut().unwrap(),
                         app.servo.as_ref().unwrap().offscreen_framebuffer_id(),
                         "RedrawRequested",
                     );
-                    minibrowser.paint(window.winit_window().unwrap());
+                    minibrowser.paint(winit_window.unwrap());
                 }
 
                 app.servo.as_mut().unwrap().present();
@@ -249,7 +281,7 @@ impl App {
                         // Intercept any ScaleFactorChanged events away from EguiGlow::on_window_event, so
                         // we can use our own logic for calculating the scale factor and set egui’s
                         // scale factor to that value manually.
-                        let desired_scale_factor = window.hidpi_factor().get();
+                        let desired_scale_factor = window.as_ref().unwrap().hidpi_factor().get();
                         let effective_egui_zoom_factor = desired_scale_factor / scale_factor as f32;
 
                         info!(
@@ -264,19 +296,19 @@ impl App {
 
                         // Request a winit redraw event, so we can recomposite, update and paint
                         // the minibrowser, and present the new frame.
-                        window.winit_window().unwrap().request_redraw();
+                        winit_window.unwrap().request_redraw();
                     },
                     winit::event::Event::WindowEvent {
                         ref event,
                         window_id: _,
                     } => {
                         let response =
-                            minibrowser.on_window_event(window.winit_window().unwrap(), event);
+                            minibrowser.on_window_event(winit_window.unwrap(), event);
                         // Update minibrowser if there's resize event to sync up with window.
                         if let WindowEvent::Resized(_) = event {
                             minibrowser.update(
-                                window.winit_window().unwrap(),
-                                &mut app.webviews.borrow_mut(),
+                                winit_window.unwrap(),
+                                app.webviews.borrow_mut().as_mut().unwrap(),
                                 app.servo.as_ref().unwrap().offscreen_framebuffer_id(),
                                 "Sync WebView size with Window Resize event",
                             );
@@ -284,7 +316,7 @@ impl App {
                         if response.repaint {
                             // Request a winit redraw event, so we can recomposite, update and paint
                             // the minibrowser, and present the new frame.
-                            window.winit_window().unwrap().request_redraw();
+                            winit_window.unwrap().request_redraw();
                         }
 
                         // TODO how do we handle the tab key? (see doc for consumed)
@@ -309,7 +341,8 @@ impl App {
 
             // Consume and handle any events from the Minibrowser.
             if let Some(minibrowser) = app.minibrowser() {
-                let webviews = &mut app.webviews.borrow_mut();
+                let mut webviews = app.webviews.borrow_mut();
+                let webviews = webviews.as_mut().unwrap();
                 let app_event_queue = &mut app.event_queue.borrow_mut();
                 minibrowser.queue_embedder_events_for_minibrowser_events(webviews, app_event_queue);
             }
@@ -325,12 +358,13 @@ impl App {
                 PumpResult::Continue { update, present } => {
                     if update {
                         if let Some(mut minibrowser) = app.minibrowser() {
-                            let webviews = &mut app.webviews.borrow_mut();
-                            if minibrowser.update_webview_data(webviews) {
+                            let mut webviews = app.webviews.borrow_mut();
+                            let webviews = webviews.as_mut().unwrap();
+                            if winit_window.is_some() && minibrowser.update_webview_data(webviews) {
                                 // Update the minibrowser immediately. While we could update by requesting a
                                 // redraw, doing so would delay the location update by two frames.
                                 minibrowser.update(
-                                    window.winit_window().unwrap(),
+                                    winit_window.unwrap(),
                                     webviews,
                                     app.servo.as_ref().unwrap().offscreen_framebuffer_id(),
                                     "update_location_in_toolbar",
@@ -347,13 +381,15 @@ impl App {
                             // call Servo::repaint_synchronously. At the moment we don’t, so there won’t be
                             // any paint scheduled, and calling it would hang the compositor forever.
                             if let Some(mut minibrowser) = app.minibrowser() {
-                                minibrowser.update(
-                                    window.winit_window().unwrap(),
-                                    &mut app.webviews.borrow_mut(),
-                                    app.servo.as_ref().unwrap().offscreen_framebuffer_id(),
-                                    "PumpResult::Present::Immediate",
-                                );
-                                minibrowser.paint(window.winit_window().unwrap());
+                                if winit_window.is_some() {
+                                    minibrowser.update(
+                                        winit_window.unwrap(),
+                                        app.webviews.borrow_mut().as_mut().unwrap(),
+                                        app.servo.as_ref().unwrap().offscreen_framebuffer_id(),
+                                        "PumpResult::Present::Immediate",
+                                    );
+                                    minibrowser.paint(winit_window.unwrap());
+                                }
                             }
                             app.servo.as_mut().unwrap().present();
                         },
@@ -363,7 +399,7 @@ impl App {
 
                             // Request a winit redraw event, so we can paint the minibrowser and present.
                             // Otherwise, it's in headless mode and we present directly.
-                            if let Some(window) = window.winit_window() {
+                            if let Some(window) = winit_window {
                                 window.request_redraw();
                             } else {
                                 app.servo.as_mut().unwrap().present();
@@ -433,6 +469,7 @@ impl App {
     /// of the Servo interface so that the WebViewManager can handle them.
     fn handle_events(&mut self) -> PumpResult {
         let mut webviews = self.webviews.borrow_mut();
+        let mut webviews = webviews.as_mut().unwrap();
 
         // Take any outstanding embedder events from the App and its Windows.
         let mut embedder_events = self.get_events();

@@ -43,7 +43,7 @@ pub trait WindowPortsMethods: WindowMethods {
     fn set_cursor(&self, _cursor: Cursor) {}
     fn new_glwindow(
         &self,
-        events_loop: &winit::event_loop::EventLoopWindowTarget<WakerEvent>,
+        events_loop: &winit::event_loop::ActiveEventLoop,
     ) -> Box<dyn webxr::glwindow::GlWindow>;
     fn winit_window(&self) -> Option<&winit::window::Window>;
     fn toolbar_height(&self) -> Length<f32, DeviceIndependentPixel>;

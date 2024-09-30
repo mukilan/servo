@@ -9,6 +9,7 @@ use std::time;
 
 use log::warn;
 use servo::embedder_traits::EventLoopWaker;
+use winit::application::ApplicationHandler;
 #[cfg(target_os = "macos")]
 use winit::platform::macos::{ActivationPolicy, EventLoopBuilderExtMacOS};
 
@@ -38,7 +39,7 @@ impl EventsLoop {
         _has_output_file: bool,
     ) -> Result<EventsLoop, winit::error::EventLoopError> {
         Ok(EventsLoop(EventLoop::Winit(Some(
-            winit::event_loop::EventLoopBuilder::with_user_event().build()?,
+            winit::event_loop::EventLoop::with_user_event().build()?,
         ))))
     }
     #[cfg(target_os = "linux")]
@@ -50,7 +51,7 @@ impl EventsLoop {
             EventLoop::Headless(Arc::new((Mutex::new(false), Condvar::new())))
         } else {
             EventLoop::Winit(Some(
-                winit::event_loop::EventLoopBuilder::with_user_event().build()?,
+                winit::event_loop::EventLoop::with_user_event().build()?,
             ))
         }))
     }
@@ -62,7 +63,7 @@ impl EventsLoop {
         Ok(EventsLoop(if headless {
             EventLoop::Headless(Arc::new((Mutex::new(false), Condvar::new())))
         } else {
-            let mut event_loop_builder = winit::event_loop::EventLoopBuilder::with_user_event();
+            let mut event_loop_builder = winit::event_loop::EventLoop::with_user_event();
             if _has_output_file {
                 // Prevent the window from showing in Dock.app, stealing focus,
                 // when generating an output file.
@@ -70,6 +71,81 @@ impl EventsLoop {
             }
             EventLoop::Winit(Some(event_loop_builder.build()?))
         }))
+    }
+}
+
+
+struct AppCallback<F> where F: 'static + FnMut(
+    winit::event::Event<WakerEvent>,
+    Option<&winit::event_loop::ActiveEventLoop>,
+    &mut ControlFlow,
+    ) { cb: F }
+
+impl<F> ApplicationHandler<WakerEvent> for AppCallback<F> where F: 'static + FnMut(
+    winit::event::Event<WakerEvent>,
+    Option<&winit::event_loop::ActiveEventLoop>,
+    &mut ControlFlow,
+    ) {
+    fn new_events(&mut self, event_loop: &winit::event_loop::ActiveEventLoop, cause: winit::event::StartCause) {
+        let event = winit::event::Event::NewEvents(cause);
+        let _ = (event_loop, cause);
+        let mut cf = ControlFlow::default();
+        (self.cb)(event, Some(&event_loop), &mut cf);
+        cf.apply_to(event_loop);
+    }
+
+    fn user_event(&mut self, event_loop: &winit::event_loop::ActiveEventLoop, event: WakerEvent) {
+        let event = winit::event::Event::UserEvent(event);
+        let mut cf = ControlFlow::default();
+        (self.cb)(event, Some(&event_loop), &mut cf);
+        cf.apply_to(event_loop);
+    }
+
+    fn device_event(
+        &mut self,
+        event_loop: &winit::event_loop::ActiveEventLoop,
+        device_id: winit::event::DeviceId,
+        event: winit::event::DeviceEvent,
+    ) {
+        let _ = (event_loop, device_id, event);
+    }
+
+    fn about_to_wait(&mut self, event_loop: &winit::event_loop::ActiveEventLoop) {
+        let _ = event_loop;
+    }
+
+    fn suspended(&mut self, event_loop: &winit::event_loop::ActiveEventLoop) {
+        let event = winit::event::Event::Suspended;
+        let mut cf = ControlFlow::default();
+        (self.cb)(event, Some(&event_loop), &mut cf);
+        cf.apply_to(event_loop);
+    }
+
+    fn resumed(&mut self, event_loop: &winit::event_loop::ActiveEventLoop) {
+        let event = winit::event::Event::Resumed;
+        let mut cf = ControlFlow::default();
+        (self.cb)(event, Some(&event_loop), &mut cf);
+        cf.apply_to(event_loop);
+    }
+
+    fn exiting(&mut self, event_loop: &winit::event_loop::ActiveEventLoop) {
+        let _ = event_loop;
+    }
+
+    fn memory_warning(&mut self, event_loop: &winit::event_loop::ActiveEventLoop) {
+        let _ = event_loop;
+    }
+
+    fn window_event(
+        &mut self,
+        event_loop: &winit::event_loop::ActiveEventLoop,
+        window_id: winit::window::WindowId,
+        event: winit::event::WindowEvent,
+    ) {
+        let event = winit::event::Event::WindowEvent{ window_id, event };
+        let mut cf = ControlFlow::default();
+        (self.cb)(event, Some(&event_loop), &mut cf);
+        cf.apply_to(event_loop);
     }
 }
 
@@ -96,22 +172,18 @@ impl EventsLoop {
 
     pub fn run_forever<F>(self, mut callback: F)
     where
-        F: 'static
-            + FnMut(
-                winit::event::Event<WakerEvent>,
-                Option<&winit::event_loop::EventLoopWindowTarget<WakerEvent>>,
-                &mut ControlFlow,
-            ),
+        F: 'static + FnMut(
+            winit::event::Event<WakerEvent>,
+            Option<&winit::event_loop::ActiveEventLoop>,
+            &mut ControlFlow,
+        )
     {
         match self.0 {
             EventLoop::Winit(events_loop) => {
                 let events_loop = events_loop.expect("Can't run an unavailable event loop.");
+                let mut app_callback = AppCallback { cb: callback };
                 events_loop
-                    .run(move |e, window_target| {
-                        let mut control_flow = ControlFlow::default();
-                        callback(e, Some(window_target), &mut control_flow);
-                        control_flow.apply_to(window_target);
-                    })
+                    .run_app(&mut app_callback)
                     .expect("Failed while running events loop");
             },
             EventLoop::Headless(ref data) => {
@@ -164,7 +236,7 @@ pub enum ControlFlow {
 }
 
 impl ControlFlow {
-    fn apply_to(self, window_target: &winit::event_loop::EventLoopWindowTarget<WakerEvent>) {
+    fn apply_to(self, window_target: &winit::event_loop::ActiveEventLoop) {
         match self {
             ControlFlow::Poll => {
                 window_target.set_control_flow(winit::event_loop::ControlFlow::Poll)
