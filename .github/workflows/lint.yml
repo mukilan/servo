@@ -14,7 +14,11 @@ env:
 jobs:
   lint:
     name: Lint
-    runs-on: ubuntu-latest
+    # Github has updated the `ubuntu-latest` label to use 24.04, but that
+    # breaks the lint job. Since build job and the self hosted runners still
+    # explicitly use 22.04, do the same here until we upgrade all the workflows
+    # together.
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
         if: github.event_name != 'pull_request_target'
