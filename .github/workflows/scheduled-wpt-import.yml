@@ -49,13 +49,18 @@ jobs:
       - name: Fetch upstream changes before syncing
         run: |
           ./mach update-wpt --sync --patch
+          ls -la tests/wpt/meta-legacy-layout
       - name: Amend commit with test results
         run: |
           export CURRENT_DATE=$(date +"%d-%m-%Y")
           echo $CURRENT_DATE
           echo "CURRENT_DATE=$CURRENT_DATE" >> $GITHUB_ENV
           ./mach update-wpt linux-layout-2013/raw/*.log --legacy-layout
+          echo "after legacy"
+          ls -la tests/wpt/meta-legacy-layout
           ./mach update-wpt linux-layout-2020/raw/*.log
+          echo "after non-legacy"
+          ls -la tests/wpt/meta-legacy-layout
           git add tests/wpt/meta tests/wpt/meta-legacy-layout
           git commit -a --amend -s --no-edit
       - name: Push changes
