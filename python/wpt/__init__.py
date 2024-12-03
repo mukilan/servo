@@ -49,15 +49,16 @@ def create_parser():
 
 
 def update_args_for_legacy_layout(kwargs: dict):
-    kwargs["test_paths"]["/"].metadata_path = os.path.join(
-        WPT_PATH, "meta-legacy-layout"
-    )
-    kwargs["test_paths"]["/_mozilla/"].metadata_path = os.path.join(
-        WPT_PATH, "mozilla", "meta-legacy-layout"
-    )
-    kwargs["test_paths"]["/_webgl/"].metadata_path = os.path.join(
-        WPT_PATH, "webgl", "meta-legacy-layout"
-    )
+    def override_metadata_path(root, metadata_path):
+        test_root = kwargs["test_paths"][root]
+        kwargs["test_paths"][root] = wptrunner.wptcommandline.TestRoot(
+            test_root.tests_path,
+            os.path.join(WPT_PATH, *metadata_path)
+        )
+    override_metadata_path("/", ["meta-legacy-layout"])
+    override_metadata_path("/_mozilla/", ["mozilla", "meta-legacy-layout"])
+    override_metadata_path("/_webgl/", ["webgl", "meta-legacy-layout"])
+
 
 
 def run_tests():
