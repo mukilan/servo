@@ -20,16 +20,14 @@ jobs:
     outputs:
       configuration: ${{ steps.configuration.outputs.result }}
     steps:
+      - name: Setup Python
+        uses: ./.github/actions/setup-python
       - uses: actions/checkout@v4
         with:
           fetch-depth: 1
           sparse-checkout: |
             python/servo/try_parser.py
-            .github/actions/setup-python
-            .python-version
           sparse-checkout-cone-mode: false
-      - name: Setup Python
-        uses: ./.github/actions/setup-python
       - name: Get Configuration
         id: configuration
         run: |

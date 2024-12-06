@@ -15,8 +15,8 @@ For more detailed build instructions, see the Servo book under [Setting up your 
 [Building for Android]: https://book.servo.org/hacking/building-for-android.html
 [Building for OpenHarmony]: https://book.servo.org/hacking/building-for-openharmony.html
 
-**NOTE**: In the below steps, please ensure you install at least version 3.9 of Python, preferably the latest version supported on your platform.
-Servo will use its own pinned version of Python (in the `.python-version` file), which it installs using [`uv`](https://docs.astral.sh/uv).
+**NOTE**: In the below steps, please ensure you install at least version 3 of python, preferably the latest version supported on your platform.
+Servo will use its own pinned version of python, which it installs using [`uv`](https://docs.astral.sh/uv).
 The system version is required for now just to bootstrap the process of creating and activating the virtual environment.
 
 ### macOS

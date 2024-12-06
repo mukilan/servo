@@ -171,8 +171,7 @@ def _activate_virtualenv(topdir):
     # Turn off warnings about deprecated syntax in our indirect dependencies.
     # TODO: find a better approach to do this.
     import warnings
-    warnings.filterwarnings('ignore', category=SyntaxWarning, module=r'.*.venv')
-
+    warnings.filterwarnings('ignore', category = SyntaxWarning, module = r'.*.venv')
 
 def _ensure_case_insensitive_if_windows():
     # The folder is called 'python'. By deliberately checking for it with the wrong case, we determine if the file
