@@ -7,7 +7,7 @@ on:
 jobs:
   upstream:
     # Run job only on servo/servo
-    if: github.repository == 'servo/servo'
+    if: github.repository == 'mukilan/servo'
     runs-on: ubuntu-latest
     steps:
       - name: Calculate PR fetch depth
@@ -30,6 +30,7 @@ jobs:
           token: ${{ secrets.WPT_SYNC_TOKEN }}
       - name: Setup Python
         uses: ./servo/.github/actions/setup-python
+        working-directory: ./servo
       - name: Install requirements
         run: |
           uv venv
