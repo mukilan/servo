@@ -321,6 +321,7 @@ pub mod filelist;
 pub mod filereader;
 pub mod filereadersync;
 pub mod focusevent;
+pub mod fontface;
 pub mod fontfaceset;
 pub mod formdata;
 pub mod formdataevent;
