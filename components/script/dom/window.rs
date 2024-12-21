@@ -28,7 +28,10 @@ use dom_struct::dom_struct;
 use embedder_traits::{EmbedderMsg, PromptDefinition, PromptOrigin, PromptResult, Theme};
 use euclid::default::{Point2D as UntypedPoint2D, Rect as UntypedRect};
 use euclid::{Point2D, Rect, Scale, Size2D, Vector2D};
-use fonts::FontContext;
+use fonts::{
+    CSSFontFaceDescriptors, FontContext, FontContextWebFontMethods, FontTemplate,
+    LowercaseFontFamilyName,
+};
 use ipc_channel::ipc::{self, IpcSender};
 use js::conversions::ToJSValConvertible;
 use js::glue::DumpJSStack;
@@ -70,6 +73,7 @@ use servo_geometry::{f32_rect_to_au_rect, DeviceIndependentIntRect, MaxRect};
 use servo_url::{ImmutableOrigin, MutableOrigin, ServoUrl};
 use style::dom::OpaqueNode;
 use style::error_reporting::{ContextualParseError, ParseErrorReporter};
+use style::font_face::SourceList;
 use style::media_queries;
 use style::parser::ParserContext as CssParserContext;
 use style::properties::style_structs::Font;
@@ -634,6 +638,26 @@ impl Window {
         can_gc: CanGc,
     ) -> EventStatus {
         event.dispatch(self.upcast(), true, can_gc)
+    }
+
+    pub(crate) fn load_web_font_for_script(
+        &self,
+        sources: SourceList,
+        descriptors: CSSFontFaceDescriptors,
+        callback: Box<dyn FnOnce(LowercaseFontFamilyName, Option<FontTemplate>) + Send>,
+    ) {
+        let webview_id = Some(self.webview_id());
+        self.font_context
+            .load_web_font_for_script(webview_id, sources, descriptors, callback);
+    }
+
+    pub(crate) fn add_web_font_to_global_font_context(
+        &self,
+        family_name: LowercaseFontFamilyName,
+        template: FontTemplate,
+    ) {
+        self.font_context
+            .add_template_to_font_context(family_name, template);
     }
 }
 
