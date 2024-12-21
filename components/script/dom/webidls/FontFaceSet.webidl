@@ -24,7 +24,7 @@ interface FontFaceSet : EventTarget {
   // constructor(sequence<FontFace> initialFaces);
 
   // setlike<FontFace>;
-  // FontFaceSet add(FontFace font);
+  FontFaceSet add(FontFace font);
   // boolean delete(FontFace font);
   // undefined clear();
 
@@ -35,7 +35,7 @@ interface FontFaceSet : EventTarget {
 
   // check and start loads if appropriate
   // and fulfill promise when all loads complete
-  // Promise<sequence<FontFace>> load(DOMString font, optional DOMString text = " ");
+  Promise<sequence<FontFace>> load(DOMString font, optional DOMString text = " ");
 
   // return whether all fonts in the fontlist are loaded
   // (does not initiate load if not available)

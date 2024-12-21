@@ -10,7 +10,9 @@ use js::rust::HandleObject;
 use crate::dom::bindings::codegen::Bindings::FontFaceSetBinding::FontFaceSetMethods;
 use crate::dom::bindings::reflector::reflect_dom_object_with_proto;
 use crate::dom::bindings::root::DomRoot;
+use crate::dom::bindings::str::DOMString;
 use crate::dom::eventtarget::EventTarget;
+use crate::dom::fontface::FontFace;
 use crate::dom::globalscope::GlobalScope;
 use crate::dom::promise::Promise;
 use crate::realms::enter_realm;
@@ -51,6 +53,16 @@ impl FontFaceSet {
 impl FontFaceSetMethods<crate::DomTypeHolder> for FontFaceSet {
     /// <https://drafts.csswg.org/css-font-loading/#dom-fontfaceset-ready>
     fn Ready(&self) -> Rc<Promise> {
+        self.promise.clone()
+    }
+
+    /// <https://drafts.csswg.org/css-font-loading/#dom-fontfaceset-add>
+    fn Add(&self, _font: &FontFace) -> DomRoot<FontFaceSet> {
+        DomRoot::from_ref(self)
+    }
+
+    /// <https://drafts.csswg.org/css-font-loading/#dom-fontfaceset-load>
+    fn Load(&self, _font: DOMString, _text: DOMString) -> Rc<Promise> {
         self.promise.clone()
     }
 }
