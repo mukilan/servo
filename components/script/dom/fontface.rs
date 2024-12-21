@@ -21,12 +21,15 @@ use crate::script_runtime::CanGc;
 #[dom_struct]
 pub struct FontFace {
     reflector: Reflector,
+    #[ignore_malloc_size_of = "Rc"]
+    promise: Rc<Promise>,
 }
 
 impl FontFace {
-    pub fn new_inherited(_global: &GlobalScope, _can_gc: CanGc) -> Self {
+    pub fn new_inherited(global: &GlobalScope, can_gc: CanGc) -> Self {
         Self {
             reflector: Reflector::new(),
+            promise: Promise::new(global, can_gc)
         }
     }
 
@@ -111,19 +114,19 @@ impl FontFaceMethods<crate::DomTypeHolder> for FontFace {
         todo!("Status")
     }
     fn Load(&self) -> Rc<Promise> {
-        todo!("Load")
+        self.promise.clone()
     }
     fn Loaded(&self) -> Rc<Promise> {
         todo!("Loaded")
     }
     fn Constructor(
-        _global: &GlobalScope,
-        _proto: Option<HandleObject>,
-        _can_gc: CanGc,
+        global: &GlobalScope,
+        proto: Option<HandleObject>,
+        can_gc: CanGc,
         _family: DOMString,
         _source: UnionTypes::StringOrArrayBufferViewOrArrayBuffer,
         _descriptors: &crate::dom::bindings::codegen::Bindings::FontFaceBinding::FontFaceDescriptors,
     ) -> DomRoot<FontFace> {
-        todo!("FontFace Constructor")
+        FontFace::new(global, proto, can_gc)
     }
 }
