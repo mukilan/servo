@@ -2,13 +2,18 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 
+use std::cell::RefCell;
 use std::rc::Rc;
 
 use dom_struct::dom_struct;
 use fonts::FontContextWebFontMethods;
 use js::rust::HandleObject;
 
+use super::bindings::cell::DomRefCell;
+use super::bindings::refcounted::Trusted;
 use super::bindings::reflector::DomGlobal;
+use super::bindings::root::Dom;
+use super::promisenativehandler::{Callback, PromiseNativeHandler};
 use super::types::Window;
 use crate::dom::bindings::codegen::Bindings::FontFaceSetBinding::FontFaceSetMethods;
 use crate::dom::bindings::codegen::Bindings::WindowBinding::WindowMethods;
@@ -20,6 +25,7 @@ use crate::dom::eventtarget::EventTarget;
 use crate::dom::fontface::FontFace;
 use crate::dom::globalscope::GlobalScope;
 use crate::dom::promise::Promise;
+use crate::realms::{enter_realm, InRealm};
 use crate::script_runtime::CanGc;
 
 /// <https://drafts.csswg.org/css-font-loading/#FontFaceSet-interface>
@@ -76,6 +82,34 @@ impl FontFaceSet {
     }
 }
 
+#[derive(JSTraceable, MallocSizeOf)]
+struct LoadHandler {
+    #[ignore_malloc_size_of = "TrustedPromise"]
+    promise: RefCell<Option<TrustedPromise>>,
+}
+
+impl LoadHandler {
+    fn new(promise: TrustedPromise) -> Self {
+        Self {
+            promise: RefCell::new(Some(promise)),
+        }
+    }
+}
+
+impl Callback for LoadHandler {
+    fn callback(
+        &self,
+        _cx: crate::script_runtime::JSContext,
+        _v: js::gc::HandleValue,
+        _realm: crate::realms::InRealm,
+        _can_gc: CanGc,
+    ) {
+        let promise = self.promise.borrow_mut().take().unwrap().root();
+        let matched_fonts = Vec::<&FontFace>::new();
+        promise.resolve_native(&matched_fonts);
+    }
+}
+
 impl FontFaceSetMethods<crate::DomTypeHolder> for FontFaceSet {
     /// <https://drafts.csswg.org/css-font-loading/#dom-fontfaceset-ready>
     fn Ready(&self) -> Rc<Promise> {
@@ -100,21 +134,30 @@ impl FontFaceSetMethods<crate::DomTypeHolder> for FontFaceSet {
         // the found faces flag). If a syntax error was returned, reject promise with a SyntaxError
         // exception and terminate these steps.
 
-        let trusted = TrustedPromise::new(promise.clone());
+        let trusted_promise_for_load = TrustedPromise::new(promise.clone());
+        let trusted_self = Trusted::new(self);
         // Step 4. Queue a task to run the following steps synchronously:
         self.global()
             .task_manager()
             .font_loading_task_source()
             .queue(task!(resolve_font_face_set_load_task: move || {
-                let promise = trusted.root();
-
                 // TODO: Step 4.1. For all of the font faces in the font face list, call their load()
                 // method.
-
                 // TODO: Step 4.2. Resolve promise with the result of waiting for all of the
                 // [[FontStatusPromise]]s of each font face in the font face list, in order.
-                let matched_fonts = Vec::<&FontFace>::new();
-                promise.resolve_native(&matched_fonts);
+                //
+                // The current implementation is just a workaround to delay resolving the load()
+                // promise until all the web fonts are loaded, to avoid intermittency in tests.
+                let font_face_set = trusted_self.root();
+                let load_handler = LoadHandler::new(trusted_promise_for_load);
+                let global = font_face_set.global();
+
+                let native_handler = PromiseNativeHandler::new(&global, Some(Box::new(load_handler)), None);
+
+                let ready_promise = font_face_set.Ready();
+                let realm = enter_realm(&*global);
+                let comp = InRealm::Entered(&realm);
+                ready_promise.append_native_handler(&native_handler, comp, CanGc::note());
             }));
 
         // Step 2. Return promise. Complete the rest of these steps asynchronously.
