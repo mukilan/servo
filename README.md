@@ -6,7 +6,7 @@ Servo is a prototype web browser engine written in the
 
 Servo welcomes contribution from everyone. Check out [The Servo Book](https://book.servo.org) to get started, or go to [servo.org](https://servo.org/) for news and guides.
 
-## Getting started
+ ## Getting started
 
 For more detailed build instructions, see the Servo book under [Setting up your environment], [Building Servo], [Building for Android] and [Building for OpenHarmony].
 
