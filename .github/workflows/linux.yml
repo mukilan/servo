@@ -138,12 +138,9 @@ jobs:
           tool-cache: false
           large-packages: false
           swap-storage: false
-      - name: Install LLVM and Clang
-        # Expliclity install Clang 14
+      - name: Set LIBCLANG_PATH env # needed for bindgen in mozangle
         if: ${{ runner.environment != 'self-hosted' }}
-        uses: KyleMayes/install-llvm-action@v2
-        with:
-          version: 14
+        run: echo "LIBCLANG_PATH=/usr/lib/llvm-14/lib" >> $GITHUB_ENV
       - name: Setup Python
         if: ${{ runner.environment != 'self-hosted' }}
         uses: ./.github/actions/setup-python
