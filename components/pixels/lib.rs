@@ -120,7 +120,7 @@ pub enum CorsStatus {
 }
 
 #[derive(Clone, Deserialize, MallocSizeOf, Serialize)]
-pub struct Image {
+pub struct RasterImage {
     pub width: u32,
     pub height: u32,
     pub format: PixelFormat,
@@ -137,7 +137,7 @@ pub struct ImageFrame {
     pub height: u32,
 }
 
-impl Image {
+impl RasterImage {
     pub fn should_animate(&self) -> bool {
         self.frames.len() > 1
     }
@@ -151,7 +151,7 @@ impl Image {
     }
 }
 
-impl fmt::Debug for Image {
+impl fmt::Debug for RasterImage {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
@@ -161,7 +161,7 @@ impl fmt::Debug for Image {
     }
 }
 
-#[derive(Clone, Debug, Deserialize, Eq, MallocSizeOf, PartialEq, Serialize)]
+#[derive(Clone, Copy, Debug, Deserialize, Eq, MallocSizeOf, PartialEq, Serialize)]
 pub struct ImageMetadata {
     pub width: u32,
     pub height: u32,
@@ -170,7 +170,7 @@ pub struct ImageMetadata {
 // FIXME: Images must not be copied every frame. Instead we should atomically
 // reference count them.
 
-pub fn load_from_memory(buffer: &[u8], cors_status: CorsStatus) -> Option<Image> {
+pub fn load_from_memory(buffer: &[u8], cors_status: CorsStatus) -> Option<RasterImage> {
     if buffer.is_empty() {
         return None;
     }
@@ -193,7 +193,7 @@ pub fn load_from_memory(buffer: &[u8], cors_status: CorsStatus) -> Option<Image>
                         width: rgba.width(),
                         height: rgba.height(),
                     };
-                    Some(Image {
+                    Some(RasterImage {
                         width: rgba.width(),
                         height: rgba.height(),
                         format: PixelFormat::BGRA8,
@@ -354,7 +354,7 @@ fn is_webp(buffer: &[u8]) -> bool {
     buffer[8..].len() >= len && &buffer[8..12] == b"WEBP"
 }
 
-fn decode_gif(buffer: &[u8], cors_status: CorsStatus) -> Option<Image> {
+fn decode_gif(buffer: &[u8], cors_status: CorsStatus) -> Option<RasterImage> {
     let Ok(decoded_gif) = GifDecoder::new(Cursor::new(buffer)) else {
         return None;
     };
@@ -394,7 +394,7 @@ fn decode_gif(buffer: &[u8], cors_status: CorsStatus) -> Option<Image> {
         debug!("Animated Image decoding error");
         None
     } else {
-        Some(Image {
+        Some(RasterImage {
             width,
             height,
             cors_status,
