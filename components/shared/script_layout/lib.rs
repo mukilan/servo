@@ -30,7 +30,7 @@ use libc::c_void;
 use malloc_size_of::{MallocSizeOf as MallocSizeOfTrait, MallocSizeOfOps};
 use malloc_size_of_derive::MallocSizeOf;
 use net_traits::image_cache::{ImageCache, PendingImageId};
-use pixels::Image;
+use pixels::RasterImage;
 use profile_traits::mem::Report;
 use profile_traits::time;
 use script_traits::{InitialScriptState, Painter, ScriptThreadMessage};
@@ -50,6 +50,7 @@ use style::queries::values::PrefersColorScheme;
 use style::selector_parser::{PseudoElement, RestyleDamage, Snapshot};
 use style::stylesheets::Stylesheet;
 use webrender_api::ImageKey;
+use webrender_api::units::DeviceIntSize;
 
 pub trait GenericLayoutDataTrait: Any + MallocSizeOfTrait {
     fn as_any(&self) -> &dyn Any;
@@ -151,6 +152,15 @@ pub struct PendingImage {
     pub node: UntrustedNodeAddress,
     pub id: PendingImageId,
     pub origin: ImmutableOrigin,
+}
+
+// A vector image that is fully loaded (i.e has a parsed SVG tree) but not yet
+// rasterized to the size needed by layout.
+#[derive(Debug)]
+pub struct PendingRasterizationImage {
+    pub node: UntrustedNodeAddress,
+    pub id: PendingImageId,
+    pub size: DeviceIntSize,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -391,6 +401,8 @@ pub type IFrameSizes = FnvHashMap<BrowsingContextId, IFrameSize>;
 pub struct ReflowResult {
     /// The list of images that were encountered that are in progress.
     pub pending_images: Vec<PendingImage>,
+    /// The list of vector images that were encountered that still need to be rasterized.
+    pub pending_rasterization_images: Vec<PendingRasterizationImage>,
     /// The list of iframes in this layout and their sizes, used in order
     /// to communicate them with the Constellation and also the `Window`
     /// element of their content pages.
@@ -506,13 +518,13 @@ pub fn node_id_from_scroll_id(id: usize) -> Option<usize> {
 #[derive(Clone, Debug, MallocSizeOf)]
 pub struct ImageAnimationState {
     #[ignore_malloc_size_of = "Arc is hard"]
-    image: Arc<Image>,
+    image: Arc<RasterImage>,
     active_frame: usize,
     last_update_time: f64,
 }
 
 impl ImageAnimationState {
-    pub fn new(image: Arc<Image>) -> Self {
+    pub fn new(image: Arc<RasterImage>) -> Self {
         Self {
             image,
             active_frame: 0,

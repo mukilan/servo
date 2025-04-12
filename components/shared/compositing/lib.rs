@@ -15,7 +15,7 @@ use euclid::Rect;
 use ipc_channel::ipc::IpcSender;
 use log::warn;
 use malloc_size_of_derive::MallocSizeOf;
-use pixels::Image;
+use pixels::RasterImage;
 use strum_macros::IntoStaticStr;
 use style_traits::CSSPixel;
 use webrender_api::DocumentId;
@@ -82,7 +82,7 @@ pub enum CompositorMsg {
     CreatePng(
         WebViewId,
         Option<Rect<f32, CSSPixel>>,
-        IpcSender<Option<Image>>,
+        IpcSender<Option<RasterImage>>,
     ),
     /// A reply to the compositor asking if the output image is stable.
     IsReadyToSaveImageReply(bool),
