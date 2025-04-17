@@ -52,18 +52,10 @@ impl LoadBlocker {
     /// Remove this load from the associated document's list of blocking loads.
     pub(crate) fn terminate(blocker: &DomRefCell<Option<LoadBlocker>>, can_gc: CanGc) {
         println!("XXXXX terminating blocking load");
-        let Some(load) = blocker
-            .borrow_mut()
-            .as_mut()
-            .and_then(|blocker| blocker.load.clone())
-        else {
-            return;
-        };
-
-        if let Some(blocker) = blocker.borrow().as_ref() {
-            blocker.doc.finish_load(load, can_gc);
+        if let Some(this) = blocker.borrow().as_ref() {
+            let load_data = this.load.clone().unwrap();
+            this.doc.finish_load(load_data, can_gc);
         }
-
         *blocker.borrow_mut() = None;
     }
 }
