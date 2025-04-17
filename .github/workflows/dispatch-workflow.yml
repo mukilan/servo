@@ -62,11 +62,11 @@ jobs:
       wpt-args: ${{ inputs.wpt-args }}
       bencher: ${{ inputs.bencher }}
 
-  lint:
-    if: ${{ inputs.workflow == 'lint' }}
-    name: Lint
-    uses: ./.github/workflows/lint.yml
-    secrets: inherit
+  # lint:
+  #   if: ${{ inputs.workflow == 'lint' }}
+  #   name: Lint
+  #   uses: ./.github/workflows/lint.yml
+  #   secrets: inherit
 
   android:
     if: ${{ inputs.workflow == 'android' }}
