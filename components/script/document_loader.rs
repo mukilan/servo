@@ -55,7 +55,7 @@ impl LoadBlocker {
         let Some(load) = blocker
             .borrow_mut()
             .as_mut()
-            .and_then(|blocker| blocker.load.take())
+            .and_then(|blocker| blocker.load.clone())
         else {
             return;
         };
