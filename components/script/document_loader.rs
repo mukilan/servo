@@ -41,6 +41,7 @@ pub(crate) struct LoadBlocker {
 impl LoadBlocker {
     /// Mark the document's load event as blocked on this new load.
     pub(crate) fn new(doc: &Document, load: LoadType) -> LoadBlocker {
+        println!("New blocking load for {:?} - {:?}", doc.url(), load);
         doc.loader_mut().add_blocking_load(load.clone());
         LoadBlocker {
             doc: Dom::from_ref(doc),
@@ -50,6 +51,7 @@ impl LoadBlocker {
 
     /// Remove this load from the associated document's list of blocking loads.
     pub(crate) fn terminate(blocker: &DomRefCell<Option<LoadBlocker>>, can_gc: CanGc) {
+        println!("XXXXX terminating blocking load");
         let Some(load) = blocker
             .borrow_mut()
             .as_mut()
@@ -68,6 +70,7 @@ impl LoadBlocker {
 
 impl Drop for LoadBlocker {
     fn drop(&mut self) {
+        println!("XXXXXX loadblocker drop impl");
         if let Some(load) = self.load.take() {
             self.doc.finish_load(load, CanGc::note());
         }

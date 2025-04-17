@@ -28,11 +28,11 @@ jobs:
     name: WPT
     runs-on: ubuntu-22.04
     env:
-      max_chunk_id: 20
+      max_chunk_id: 1
     strategy:
       fail-fast: false
       matrix:
-        chunk_id: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]
+        chunk_id: [1]
     steps:
       - uses: actions/checkout@v4
         if: github.event_name != 'pull_request_target'
@@ -71,7 +71,7 @@ jobs:
             --log-wptreport wpt-full-logs/linux/wptreport/${{ matrix.chunk_id }}.json \
             --log-raw-unexpected wpt-filtered-logs/linux/${{ matrix.chunk_id }}.log \
             --filter-intermittents wpt-filtered-logs/linux/${{ matrix.chunk_id }}.json \
-            ${{ inputs.wpt-args }}
+            '/mimesniff/media/media-sniff.window.html'
         env:
           GITHUB_CONTEXT: ${{ toJson(github) }}
       - name: Archive results (filtered)

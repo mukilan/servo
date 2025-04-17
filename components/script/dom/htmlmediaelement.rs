@@ -520,6 +520,7 @@ impl HTMLMediaElement {
     ///
     /// <https://html.spec.whatwg.org/multipage/#delaying-the-load-event-flag>
     pub(crate) fn delay_load_event(&self, delay: bool, can_gc: CanGc) {
+        println!("marked as delaying load event {delay} bt: {}", std::backtrace::Backtrace::capture());
         let blocker = &self.delaying_the_load_event_flag;
         if delay && blocker.borrow().is_none() {
             *blocker.borrow_mut() = Some(LoadBlocker::new(&self.owner_document(), LoadType::Media));
@@ -925,7 +926,9 @@ impl HTMLMediaElement {
 
     // https://html.spec.whatwg.org/multipage/#concept-media-load-resource
     fn resource_fetch_algorithm(&self, resource: Resource) {
+        println!("resource_fetch_algorithm 1");
         if let Err(e) = self.setup_media_player(&resource) {
+            println!("resource_fetch_algorithm 2");
             eprintln!("Setup media player error {:?}", e);
             self.queue_dedicated_media_source_failure_steps();
             return;
@@ -941,8 +944,10 @@ impl HTMLMediaElement {
         // Step 4.
         match resource {
             Resource::Url(url) => {
+                println!("resource_fetch_algorithm 3");
                 // Step 4.remote.1.
                 if self.Preload() == "none" && !self.autoplaying.get() {
+                    println!("resource_fetch_algorithm 4");
                     // Step 4.remote.1.1.
                     self.network_state.set(NetworkState::Idle);
 
@@ -1139,6 +1144,7 @@ impl HTMLMediaElement {
 
             // Step 6.5.
             if self.ready_state.get() != ReadyState::HaveNothing {
+                println!("changing ready state 1");
                 self.change_ready_state(ReadyState::HaveNothing);
             }
 
@@ -1178,6 +1184,7 @@ impl HTMLMediaElement {
         self.error.set(None);
         self.autoplaying.set(true);
 
+        println!("invoking resource selection algo");
         // Step 9.
         self.invoke_resource_selection_algorithm(can_gc);
 
@@ -1561,6 +1568,7 @@ impl HTMLMediaElement {
                                 );
 
                                 // https://html.spec.whatwg.org/multipage/#dom-media-have_current_data
+                                println!("changing ready state 2");
                                 self.change_ready_state(ReadyState::HaveCurrentData);
                             }
                         },
@@ -1767,6 +1775,7 @@ impl HTMLMediaElement {
                 self.handle_resize(Some(metadata.width), Some(metadata.height));
 
                 // Step 6.
+                println!("changing ready state 3");
                 self.change_ready_state(ReadyState::HaveMetadata);
 
                 // Step 7.
@@ -1837,6 +1846,7 @@ impl HTMLMediaElement {
                 }
             },
             PlayerEvent::EnoughData => {
+                println!("changing ready state 4");
                 self.change_ready_state(ReadyState::HaveEnoughData);
 
                 // The player has enough data and it is asking us to stop pushing
@@ -1889,6 +1899,7 @@ impl HTMLMediaElement {
                     PlaybackState::Paused => {
                         media_session_playback_state = MediaSessionPlaybackState::Paused;
                         if self.ready_state.get() == ReadyState::HaveMetadata {
+                            println!("changing ready state 5");
                             self.change_ready_state(ReadyState::HaveEnoughData);
                         }
                     },
@@ -2722,6 +2733,7 @@ impl FetchResponseListener for HTMLMediaElementFetchListener {
     fn process_request_eof(&mut self, _: RequestId) {}
 
     fn process_response(&mut self, _: RequestId, metadata: Result<FetchMetadata, NetworkError>) {
+        println!("XXXXXXXXXXXXXXXX process_response {:?}", metadata);
         let elem = self.elem.root();
 
         if elem.generation_id.get() != self.generation_id || elem.player.borrow().is_none() {
@@ -2796,6 +2808,7 @@ impl FetchResponseListener for HTMLMediaElementFetchListener {
     }
 
     fn process_response_chunk(&mut self, _: RequestId, payload: Vec<u8>) {
+        println!("XXXXXXXXXXXXXXXX process_response_chunk {}", payload.len());
         let elem = self.elem.root();
         // If an error was received previously or if we triggered a new fetch request,
         // we skip processing the payload.
@@ -2858,6 +2871,7 @@ impl FetchResponseListener for HTMLMediaElementFetchListener {
         _: RequestId,
         status: Result<ResourceFetchTiming, NetworkError>,
     ) {
+        println!("XXXXXXXXXXXXXXXX process_response_eof {:?}", status);
         trace!("process response eof");
         if let Some(seek_lock) = self.seek_lock.take() {
             seek_lock.unlock(/* successful seek */ false);
@@ -2866,6 +2880,7 @@ impl FetchResponseListener for HTMLMediaElementFetchListener {
         let elem = self.elem.root();
 
         if elem.generation_id.get() != self.generation_id || elem.player.borrow().is_none() {
+            println!("early resturn");
             return;
         }
 
@@ -2880,17 +2895,20 @@ impl FetchResponseListener for HTMLMediaElementFetchListener {
             .unwrap()
             .end_of_stream()
         {
+            println!("Could not signal EOS to player {:?}", e);
             warn!("Could not signal EOS to player {:?}", e);
         }
 
         // If an error was previously received we skip processing the payload.
         if let Some(ref current_fetch_context) = *elem.current_fetch_context.borrow() {
             if let Some(CancelReason::Error) = current_fetch_context.cancel_reason() {
+                println!("return due to cancell erro");
                 return;
             }
         }
 
         if status.is_ok() && self.latest_fetched_content != 0 {
+            println!("XXXXXX preof 1");
             elem.upcast::<EventTarget>()
                 .fire_event(atom!("progress"), CanGc::note());
 
@@ -2901,6 +2919,7 @@ impl FetchResponseListener for HTMLMediaElementFetchListener {
         }
         // => "If the connection is interrupted after some media data has been received..."
         else if elem.ready_state.get() != ReadyState::HaveNothing {
+            println!("XXXXXX preof 2");
             // If the media backend has already flagged an error, skip any observable
             // network-related errors.
             if elem.in_error_state() {
@@ -2929,6 +2948,7 @@ impl FetchResponseListener for HTMLMediaElementFetchListener {
             elem.upcast::<EventTarget>()
                 .fire_event(atom!("error"), CanGc::note());
         } else {
+            println!("XXXXXX preof 3");
             // => "If the media data cannot be fetched at all..."
             elem.queue_dedicated_media_source_failure_steps();
         }
