@@ -171,6 +171,9 @@ impl DocumentLoader {
         // TODO: Ensure that we report blocked if parsing is still ongoing.
         let res = !self.blocking_loads.is_empty();
         println!("XXXX Document is blocked: {res} {}", self.blocking_loads.len());
+        for i in self.blocking_loads.iter() {
+            println!("===== blocked load {:?}", i);
+        }
         res
     }
 
