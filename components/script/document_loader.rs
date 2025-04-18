@@ -51,7 +51,7 @@ impl LoadBlocker {
 
     /// Remove this load from the associated document's list of blocking loads.
     pub(crate) fn terminate(blocker: &DomRefCell<Option<LoadBlocker>>, can_gc: CanGc) {
-        println!("XXXXX new terminating blocking load");
+        println!("XXXXX NEW terminating blocking load");
         let Some(load) = blocker
             .borrow_mut()
             .as_mut()
@@ -63,7 +63,11 @@ impl LoadBlocker {
         if let Some(blocker) = blocker.borrow().as_ref() {
             blocker.doc.finish_load(load, can_gc);
         }
-
+        // println!("XXXXX terminating blocking load");
+        // if let Some(this) = blocker.borrow().as_ref() {
+        //     let load_data = this.load.clone().unwrap();
+        //     this.doc.finish_load(load_data, can_gc);
+        // }
         *blocker.borrow_mut() = None;
     }
 }
@@ -165,7 +169,9 @@ impl DocumentLoader {
 
     pub(crate) fn is_blocked(&self) -> bool {
         // TODO: Ensure that we report blocked if parsing is still ongoing.
-        !self.blocking_loads.is_empty()
+        let res = !self.blocking_loads.is_empty();
+        println!("XXXX Document is blocked: {res} {}", self.blocking_loads.len());
+        res
     }
 
     pub(crate) fn is_only_blocked_by_iframes(&self) -> bool {

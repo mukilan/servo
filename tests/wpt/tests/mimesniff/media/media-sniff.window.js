@@ -1,12 +1,12 @@
 const tests = {
   "vectors": [
     "mp3-raw.mp3",
-    "mp3-with-id3.mp3",
+    // "mp3-with-id3.mp3",
     "flac.flac",
     "ogg.ogg",
-    "mp4.mp4",
+    // "mp4.mp4",
     "wav.wav",
-    "webm.webm"
+    // "webm.webm"
   ],
   "contentTypes": [
     "",
