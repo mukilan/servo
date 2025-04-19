@@ -1775,7 +1775,8 @@ impl HTMLMediaElement {
                 self.handle_resize(Some(metadata.width), Some(metadata.height));
 
                 // Step 6.
-                println!("changing ready state 3");
+                let resource = self.resource_url.borrow().clone();
+                println!("changing ready state 3 for {:?}", resource);
                 self.change_ready_state(ReadyState::HaveMetadata);
 
                 // Step 7.
@@ -1899,7 +1900,8 @@ impl HTMLMediaElement {
                     PlaybackState::Paused => {
                         media_session_playback_state = MediaSessionPlaybackState::Paused;
                         if self.ready_state.get() == ReadyState::HaveMetadata {
-                            println!("changing ready state 5");
+                            let resource = self.resource_url.borrow().clone();
+                            println!("changing ready state 5 for {:?}", resource);
                             self.change_ready_state(ReadyState::HaveEnoughData);
                         }
                     },
