@@ -631,6 +631,9 @@ impl HTMLMediaElement {
         let old_ready_state = self.ready_state.get();
         self.ready_state.set(ready_state);
 
+        let resource = self.resource_url.borrow().clone();
+        println!("got state change for {:?} - old: {:?} new: {:?}", resource, old_ready_state, ready_state);
+
         if self.network_state.get() == NetworkState::Empty {
             return;
         }
