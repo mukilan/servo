@@ -890,6 +890,8 @@ impl ImageCache for ImageCacheImpl {
                 placeholder_image,
                 placeholder_url,
                 compositor_api,
+                svg_data: HashMap::new(),
+                rasterized_vector_images: HashMap::new(),
             })),
             thread_pool: self.thread_pool.clone(),
         })
