@@ -23,7 +23,6 @@ use style::dom::OpaqueNode;
 use style::values::computed::image::{Gradient, Image};
 use webrender_api::units::DeviceIntSize;
 
-use crate::display_list::WebRenderImageInfo;
 
 pub struct LayoutContext<'a> {
     pub id: PipelineId,
@@ -49,15 +48,15 @@ pub struct LayoutContext<'a> {
     /// A collection of `<iframe>` sizes to send back to script.
     pub iframe_sizes: Mutex<IFrameSizes>,
 
-    pub webrender_image_cache:
-        Arc<RwLock<FnvHashMap<(ServoUrl, UsePlaceholder), WebRenderImageInfo>>>,
+    pub resolved_image_cache:
+        Arc<RwLock<FnvHashMap<(ServoUrl, UsePlaceholder), Option<net_traits::image_cache::Image>>>>,
 
     pub node_image_animation_map: Arc<RwLock<FxHashMap<OpaqueNode, ImageAnimationState>>>,
 }
 
 pub enum ResolvedImage<'a> {
     Gradient(&'a Gradient),
-    Image(WebRenderImageInfo),
+    Image(net_traits::image_cache::Image),
 }
 
 impl Drop for LayoutContext<'_> {
@@ -157,36 +156,28 @@ impl LayoutContext<'_> {
         node: OpaqueNode,
         url: ServoUrl,
         use_placeholder: UsePlaceholder,
-    ) -> Result<WebRenderImageInfo, ResolveImageError> {
-        if let Some(existing_webrender_image) = self
-            .webrender_image_cache
+    ) -> Result<net_traits::image_cache::Image, ResolveImageError> {
+        if let Some(cached_image) = self
+            .resolved_image_cache
             .read()
             .get(&(url.clone(), use_placeholder))
         {
-            return Ok(*existing_webrender_image);
+            return cached_image
+                .as_ref()
+                .map_or(Err(ResolveImageError::LoadError), |image| Ok(image.clone()));
         }
+
         let image_or_meta =
             self.get_or_request_image_or_meta(node, url.clone(), use_placeholder)?;
         match image_or_meta {
             ImageOrMetadataAvailable::ImageAvailable { image, .. } => {
-                let Some(image) = image.as_raster_image() else {
-                    // TODO: Add support for vector images in layout image.
-                    return Result::Err(ResolveImageError::NotImplementedYet(
-                        "SVG images not supported yet",
-                    ));
-                };
-                self.handle_animated_image(node, image.clone());
-                let image_info = WebRenderImageInfo {
-                    size: Size2D::new(image.width, image.height),
-                    key: image.id,
-                };
-                if image_info.key.is_none() {
-                    Ok(image_info)
-                } else {
-                    let mut webrender_image_cache = self.webrender_image_cache.write();
-                    webrender_image_cache.insert((url, use_placeholder), image_info);
-                    Ok(image_info)
+                if let Some(image) = image.as_raster_image() {
+                    self.handle_animated_image(node, image.clone());
                 }
+
+                let mut webrender_image_cache = self.resolved_image_cache.write();
+                webrender_image_cache.insert((url, use_placeholder), Some(image.clone()));
+                Ok(image)
             },
             ImageOrMetadataAvailable::MetadataAvailable(..) => {
                 Result::Err(ResolveImageError::OnlyMetadata)
@@ -253,16 +244,16 @@ impl LayoutContext<'_> {
                     .and_then(|image| {
                         self.resolve_image(node, &image.image)
                             .map(|info| match info {
-                                ResolvedImage::Image(mut image_info) => {
+                                ResolvedImage::Image(image_info) => {
                                     // From <https://drafts.csswg.org/css-images-4/#image-set-notation>:
                                     // > A <resolution> (optional). This is used to help the UA decide
                                     // > which <image-set-option> to choose. If the image reference is
                                     // > for a raster image, it also specifies the image’s natural
                                     // > resolution, overriding any other source of data that might
                                     // > supply a natural resolution.
-                                    image_info.size = (image_info.size.to_f32() /
-                                        image.resolution.dppx())
-                                    .to_u32();
+                                    // TODO: what is this
+                                    // image_info.size = (image_info.size.to_f32() / image.resolution.dppx())
+                                    // .to_u32();
                                     ResolvedImage::Image(image_info)
                                 },
                                 _ => info,
