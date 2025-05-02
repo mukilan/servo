@@ -735,7 +735,7 @@ impl ImageCache for ImageCacheImpl {
             let requested_size = {
                 let width = size.width.try_into().unwrap_or(0);
                 let height = size.height.try_into().unwrap_or(0);
-                tiny_skia::IntSize::from_wh(width, height).unwrap()
+                tiny_skia::IntSize::from_wh(width, height).unwrap_or(natural_size)
             };
             let transform = tiny_skia::Transform::from_scale(
                 requested_size.width() as f32 / natural_size.width() as f32,
