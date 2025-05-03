@@ -4,9 +4,9 @@ Servo is a prototype web browser engine written in the
 [Rust](https://github.com/rust-lang/rust) language. It is currently developed on
 64-bit macOS, 64-bit Linux, 64-bit Windows, 64-bit OpenHarmony, and Android.
 
-Servo welcomes contribution from everyone. Check out [The Servo Book](https://book.servo.org) to get started, or go to [servo.org](https://servo.org/) for news and guides.
+ Servo welcomes contribution from everyone. Check out [The Servo Book](https://book.servo.org) to get started, or go to [servo.org](https://servo.org/) for news and guides.
 
-## Getting started
+ ## Getting started
 
 For more detailed build instructions, see the Servo book under [Setting up your environment], [Building Servo], [Building for Android] and [Building for OpenHarmony].
 
