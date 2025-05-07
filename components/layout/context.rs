@@ -10,7 +10,7 @@ use fnv::FnvHashMap;
 use fonts::FontContext;
 use fxhash::FxHashMap;
 use net_traits::image_cache::{
-    ImageCache, ImageCacheResult, ImageOrMetadataAvailable, PendingImageId, UsePlaceholder,
+    Image as CachedImage, ImageCache, ImageCacheResult, ImageOrMetadataAvailable, PendingImageId, UsePlaceholder
 };
 use parking_lot::{Mutex, RwLock};
 use pixels::Image as PixelImage;
@@ -49,20 +49,28 @@ pub struct LayoutContext<'a> {
     pub iframe_sizes: Mutex<IFrameSizes>,
 
     pub resolved_image_cache:
-        Arc<RwLock<FnvHashMap<(ServoUrl, UsePlaceholder), Option<net_traits::image_cache::Image>>>>,
+        Arc<RwLock<FnvHashMap<(ServoUrl, UsePlaceholder), Option<CachedImage>>>>,
 
     pub node_image_animation_map: Arc<RwLock<FxHashMap<OpaqueNode, ImageAnimationState>>>,
 }
 
+pub struct LayoutImage {
+    pub image: CachedImage,
+    // image-set images can override the natural resolution
+    // and hence the final size for raster images
+    pub size: DeviceIntSize
+}
+
 pub enum ResolvedImage<'a> {
     Gradient(&'a Gradient),
-    Image(net_traits::image_cache::Image),
+    Image(LayoutImage),
 }
 
 impl Drop for LayoutContext<'_> {
     fn drop(&mut self) {
         if !std::thread::panicking() {
             assert!(self.pending_images.lock().is_empty());
+            assert!(self.pending_rasterization_images.lock().is_empty());
         }
     }
 }
@@ -156,7 +164,7 @@ impl LayoutContext<'_> {
         node: OpaqueNode,
         url: ServoUrl,
         use_placeholder: UsePlaceholder,
-    ) -> Result<net_traits::image_cache::Image, ResolveImageError> {
+    ) -> Result<CachedImage, ResolveImageError> {
         if let Some(cached_image) = self
             .resolved_image_cache
             .read()
@@ -229,12 +237,13 @@ impl LayoutContext<'_> {
                 // element and not just the node.
                 let image_url = image_url.url().ok_or(ResolveImageError::InvalidUrl)?;
                 let node = node.ok_or(ResolveImageError::MissingNode)?;
-                let webrender_info = self.get_webrender_image_for_url(
+                let image = self.get_webrender_image_for_url(
                     node,
                     image_url.clone().into(),
                     UsePlaceholder::No,
                 )?;
-                Ok(ResolvedImage::Image(webrender_info))
+                let size = Size2D::new(image.metadata().width as i32, image.metadata().height as i32);
+                Ok(ResolvedImage::Image(LayoutImage { image, size }))
             },
             Image::ImageSet(image_set) => {
                 image_set
@@ -244,17 +253,24 @@ impl LayoutContext<'_> {
                     .and_then(|image| {
                         self.resolve_image(node, &image.image)
                             .map(|info| match info {
-                                ResolvedImage::Image(image_info) => {
+                                ResolvedImage::Image(layout_image) => {
                                     // From <https://drafts.csswg.org/css-images-4/#image-set-notation>:
                                     // > A <resolution> (optional). This is used to help the UA decide
                                     // > which <image-set-option> to choose. If the image reference is
                                     // > for a raster image, it also specifies the image’s natural
                                     // > resolution, overriding any other source of data that might
                                     // > supply a natural resolution.
-                                    // TODO: what is this
-                                    // image_info.size = (image_info.size.to_f32() / image.resolution.dppx())
-                                    // .to_u32();
-                                    ResolvedImage::Image(image_info)
+                                    let image_metadata = layout_image.image.metadata();
+                                    let size = if layout_image.image.as_raster_image().is_some() {
+                                        let scale_factor = image.resolution.dppx();
+                                        Size2D::new(
+                                            image_metadata.width as f32 / scale_factor,
+                                            image_metadata.height as f32 / scale_factor
+                                        ).to_i32()
+                                    } else {
+                                        Size2D::new(image_metadata.width, image_metadata.height).to_i32()
+                                    };
+                                    ResolvedImage::Image(LayoutImage { size, .. layout_image })
                                 },
                                 _ => info,
                             })

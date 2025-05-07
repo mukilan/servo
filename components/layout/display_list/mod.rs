@@ -13,6 +13,7 @@ use embedder_traits::Cursor;
 use euclid::{Point2D, SideOffsets2D, Size2D, UnknownUnit};
 use fonts::GlyphStore;
 use gradient::WebRenderGradient;
+use net_traits::image_cache;
 use range::Range as ServoRange;
 use servo_geometry::MaxRect;
 use style::Zero;
@@ -878,15 +879,15 @@ impl<'a> BuilderForBoxFragment<'a> {
                     // FIXME: https://drafts.csswg.org/css-images-4/#the-image-resolution
                     let dppx = 1.0;
                     let intrinsic = NaturalSizes::from_width_and_height(
-                        image.metadata().width as f32 / dppx,
-                        image.metadata().height as f32 / dppx,
+                        image.size.width as f32 / dppx,
+                        image.size.height as f32 / dppx,
                     );
                     let layer = background::layout_layer(self, painter, builder, index, intrinsic);
-                    let image_wr_key = match image {
-                        net_traits::image_cache::Image::Raster(image) => image.id,
-                        net_traits::image_cache::Image::Vector(_, image_id, _) => {
+                    let image_wr_key = match image.image {
+                        image_cache::Image::Raster(image) => image.id,
+                        image_cache::Image::Vector(_, image_id, _) => {
                             let scale = builder.context.shared_context().device_pixel_ratio().0;
-                            let default_size: DeviceIntSize = Size2D::new(image.metadata().width as f32 * scale, image.metadata().height as f32 * scale).to_i32();
+                            let default_size: DeviceIntSize = Size2D::new(image.size.width as f32 * scale, image.size.height as f32 * scale).to_i32();
                             let layer_size: Option<DeviceIntSize> = layer
                                 .as_ref()
                                 .map(|layer| Size2D::new(layer.tile_size.width * scale, layer.tile_size.height * scale).to_i32());
@@ -1079,7 +1080,7 @@ impl<'a> BuilderForBoxFragment<'a> {
         {
             Err(_) => return false,
             Ok(ResolvedImage::Image(image_info)) => {
-                let Some(image) = image_info.as_raster_image() else {
+                let Some(image) = image_info.image.as_raster_image() else {
                     return false;
                 };
 
@@ -1087,8 +1088,8 @@ impl<'a> BuilderForBoxFragment<'a> {
                     return false;
                 };
 
-                width = image.width as f32;
-                height = image.height as f32;
+                width = image_info.size.width as f32;
+                height = image_info.size.height as f32;
                 NinePatchBorderSource::Image(key, ImageRendering::Auto)
             },
             Ok(ResolvedImage::Gradient(gradient)) => {
