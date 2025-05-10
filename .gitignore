@@ -42,6 +42,9 @@ webrender-captures/
 ## Gradle
 .gradle
 
+## Helix
+.helix
+
 ## VSCode
 .vscode
 !/.vscode/extensions.json
