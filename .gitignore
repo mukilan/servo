@@ -60,6 +60,8 @@ Sessionx.vim
 # Zed
 /.zed
 
+.helix
+
 /unminified-js
 /unminified-css
 

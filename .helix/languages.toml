@@ -1,0 +1,4 @@
+[language-server.rust-analyzer.config]
+check.overrideCommand = ["./mach", "check", "--message-format=json", "--target-dir", "target/lsp" ]
+cargo.buildScripts.overrideCommand = [ "./mach", "check", "--message-format=json", "--target-dir", "target/lsp"]
+rustfmt.overrideCommand = [ "./mach", "fmt" ]
