@@ -51,7 +51,7 @@ pub struct LayoutContext<'a> {
     // A cache that maps image resources used in CSS (e.g as the `url()` value
     // for `background-image` or `content` property) to the final resolved image data.
     pub resolved_images_cache:
-        Arc<RwLock<FnvHashMap<(ServoUrl, UsePlaceholder), Option<CachedImage>>>>,
+        Arc<RwLock<FnvHashMap<(ServoUrl, UsePlaceholder), Result<CachedImage, ResolveImageError>>>>,
 
     pub node_image_animation_map: Arc<RwLock<FxHashMap<OpaqueNode, ImageAnimationState>>>,
 
@@ -83,7 +83,7 @@ impl Drop for LayoutContext<'_> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Copy, Clone, Debug)]
 pub enum ResolveImageError {
     LoadError,
     ImagePending,
@@ -108,7 +108,7 @@ impl LayoutContext<'_> {
         node: OpaqueNode,
         url: ServoUrl,
         use_placeholder: UsePlaceholder,
-    ) -> Result<ImageOrMetadataAvailable, ResolveImageError> {
+    ) -> Result<Option<ImageOrMetadataAvailable>, ()> {
         // Check for available image or start tracking.
         let cache_result = self.image_cache.get_cached_image_status(
             url.clone(),
@@ -118,7 +118,7 @@ impl LayoutContext<'_> {
         );
 
         match cache_result {
-            ImageCacheResult::Available(img_or_meta) => Ok(img_or_meta),
+            ImageCacheResult::Available(img_or_meta) => Ok(Some(img_or_meta)),
             // Image has been requested, is still pending. Return no image for this paint loop.
             // When the image loads it will trigger a reflow and/or repaint.
             ImageCacheResult::Pending(id) => {
@@ -129,7 +129,7 @@ impl LayoutContext<'_> {
                     origin: self.origin.clone(),
                 };
                 self.pending_images.lock().push(image);
-                Result::Err(ResolveImageError::ImagePending)
+                Ok(None)
             },
             // Not yet requested - request image or metadata from the cache
             ImageCacheResult::ReadyForRequest(id) => {
@@ -140,10 +140,10 @@ impl LayoutContext<'_> {
                     origin: self.origin.clone(),
                 };
                 self.pending_images.lock().push(image);
-                Result::Err(ResolveImageError::ImageRequested)
+                Ok(None)
             },
             // Image failed to load, so just return nothing
-            ImageCacheResult::LoadError => Result::Err(ResolveImageError::LoadError),
+            ImageCacheResult::LoadError => Result::Err(()),
         }
     }
 
@@ -178,25 +178,30 @@ impl LayoutContext<'_> {
             .read()
             .get(&(url.clone(), use_placeholder))
         {
-            return cached_image
-                .as_ref()
-                .map_or(Err(ResolveImageError::LoadError), |image| Ok(image.clone()));
+            return cached_image.clone();
         }
 
-        let image_or_meta =
-            self.get_or_request_image_or_meta(node, url.clone(), use_placeholder)?;
-        match image_or_meta {
-            ImageOrMetadataAvailable::ImageAvailable { image, .. } => {
+        let result = self.get_or_request_image_or_meta(node, url.clone(), use_placeholder);
+        match result {
+            Ok(Some(ImageOrMetadataAvailable::ImageAvailable { image, .. })) => {
                 if let Some(image) = image.as_raster_image() {
                     self.handle_animated_image(node, image.clone());
                 }
 
                 let mut resolved_images_cache = self.resolved_images_cache.write();
-                resolved_images_cache.insert((url, use_placeholder), Some(image.clone()));
+                resolved_images_cache.insert((url, use_placeholder), Ok(image.clone()));
                 Ok(image)
             },
-            ImageOrMetadataAvailable::MetadataAvailable(..) => {
+            Ok(Some(ImageOrMetadataAvailable::MetadataAvailable(..))) => {
                 Result::Err(ResolveImageError::OnlyMetadata)
+            },
+            Ok(None) => Result::Err(ResolveImageError::ImagePending),
+            Err(()) => {
+                let error = Err(ResolveImageError::LoadError);
+                self.resolved_images_cache
+                    .write()
+                    .insert((url, use_placeholder), error.clone());
+                error
             },
         }
     }

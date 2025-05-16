@@ -195,7 +195,7 @@ impl ReplacedContents {
                 image_url.clone().into(),
                 UsePlaceholder::No,
             ) {
-                Ok(ImageOrMetadataAvailable::ImageAvailable { image, .. }) => {
+                Ok(Some(ImageOrMetadataAvailable::ImageAvailable { image, .. })) => {
                     let metadata = image.metadata();
                     (
                         Some(image.clone()),
@@ -203,10 +203,10 @@ impl ReplacedContents {
                         metadata.height as f32,
                     )
                 },
-                Ok(ImageOrMetadataAvailable::MetadataAvailable(metadata, _id)) => {
+                Ok(Some(ImageOrMetadataAvailable::MetadataAvailable(metadata, _id))) => {
                     (None, metadata.width as f32, metadata.height as f32)
                 },
-                Err(_) => return None,
+                Ok(None) | Err(_) => return None,
             };
 
             return Some(Self {

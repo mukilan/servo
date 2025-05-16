@@ -76,7 +76,7 @@ use url::Url;
 use webrender_api::units::{DevicePixel, DevicePoint, LayoutPixel, LayoutPoint, LayoutSize};
 use webrender_api::{ExternalScrollId, HitTestFlags};
 
-use crate::context::LayoutContext;
+use crate::context::{LayoutContext, ResolveImageError};
 use crate::display_list::DisplayList;
 use crate::query::{
     get_the_text_steps, process_client_rect_request, process_content_box_request,
@@ -156,7 +156,8 @@ pub struct LayoutThread {
 
     // A cache that maps image resources used in CSS (e.g as the `url()` value
     // for `background-image` or `content` property) to the final resolved image data.
-    resolved_images_cache: Arc<RwLock<FnvHashMap<(ServoUrl, UsePlaceholder), Option<Image>>>>,
+    resolved_images_cache:
+        Arc<RwLock<FnvHashMap<(ServoUrl, UsePlaceholder), Result<Image, ResolveImageError>>>>,
 
     /// The executors for paint worklets.
     registered_painters: RegisteredPaintersImpl,
