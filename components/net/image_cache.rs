@@ -20,7 +20,7 @@ use net_traits::image_cache::{
     ImageOrMetadataAvailable, ImageResponse, PendingImageId, UsePlaceholder, VectorImage,
 };
 use net_traits::request::CorsSettings;
-use net_traits::{FetchMetadata, FetchResponseMsg, FilteredMetadata, LoadContext, NetworkError};
+use net_traits::{FetchMetadata, FetchResponseMsg, FilteredMetadata, NetworkError};
 use pixels::{CorsStatus, ImageFrame, ImageMetadata, PixelFormat, RasterImage, load_from_memory};
 use profile_traits::mem::{Report, ReportKind};
 use profile_traits::path;
@@ -30,7 +30,6 @@ use servo_url::{ImmutableOrigin, ServoUrl};
 use webrender_api::units::DeviceIntSize;
 use webrender_api::{ImageDescriptor, ImageDescriptorFlags, ImageFormat};
 
-use crate::mime_classifier::{ApacheBugFlag, MimeClassifier, NoSniffFlag};
 use crate::resource_thread::CoreResourceThreadPool;
 
 // We bake in rippy.png as a fallback, in case the embedder does not provide
@@ -53,7 +52,7 @@ const FALLBACK_RIPPY: &[u8] = include_bytes!("../../resources/rippy.png");
 // ======================================================================
 
 fn parse_svg_document_in_memory(bytes: &[u8]) -> Result<usvg::Tree, &'static str> {
-    let image_string_href_resolver = Box::new(move |_ : &str, _: &usvg::Options| {
+    let image_string_href_resolver = Box::new(move |_: &str, _: &usvg::Options| {
         // Do not try to load `href` string in <image> as local file path.
         None
     });
@@ -68,14 +67,11 @@ fn parse_svg_document_in_memory(bytes: &[u8]) -> Result<usvg::Tree, &'static str
 
     opt.fontdb_mut().load_system_fonts();
 
-    let result = usvg::Tree::from_data(bytes, &opt);
-    if let Err(error) = result {
-        warn!("Error when parsing SVG data: {error}");
-        return Err("Not a valid SVG");
-    };
-
-    let tree = result.expect("Garaunteed to be valid");
-    Ok(tree)
+    usvg::Tree::from_data(bytes, &opt)
+        .inspect_err(|error| {
+            warn!("Error when parsing SVG data: {error}");
+        })
+        .map_err(|_| "Not a valid SVG document")
 }
 
 fn decode_bytes_sync(
@@ -84,26 +80,17 @@ fn decode_bytes_sync(
     cors: CorsStatus,
     content_type: Option<Mime>,
 ) -> DecoderMsg {
-    let mime_classifier = MimeClassifier::default();
-    let mime = mime_classifier.classify(
-        LoadContext::Image,
-        NoSniffFlag::Off,
-        ApacheBugFlag::Off,
-        &content_type,
-        bytes,
-    );
-    let image = if mime == mime::IMAGE_SVG {
-        if let Ok(tree) = parse_svg_document_in_memory(bytes) {
-            Some(DecodedImage::Vector(VectorImageData {
+    let image = if content_type == Some(mime::IMAGE_SVG) {
+        parse_svg_document_in_memory(bytes).ok().map(|tree| {
+            DecodedImage::Vector(VectorImageData {
                 svg_tree: Arc::new(tree),
                 cors_status: cors,
-            }))
-        } else {
-            None
-        }
+            })
+        })
     } else {
         load_from_memory(bytes, cors).map(DecodedImage::Raster)
     };
+
     DecoderMsg { key, image }
 }
 
