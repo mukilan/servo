@@ -53,9 +53,19 @@ const FALLBACK_RIPPY: &[u8] = include_bytes!("../../resources/rippy.png");
 // ======================================================================
 
 fn parse_svg_document_in_memory(bytes: &[u8]) -> Result<usvg::Tree, &'static str> {
+    let image_string_href_resolver = Box::new(move |_ : &str, _: &usvg::Options| {
+        // Do not try to load `href` string in <image> as local file path.
+        None
+    });
+
     let mut opt = usvg::Options {
+        image_href_resolver: usvg::ImageHrefResolver {
+            resolve_data: usvg::ImageHrefResolver::default_data_resolver(),
+            resolve_string: image_string_href_resolver,
+        },
         ..usvg::Options::default()
     };
+
     opt.fontdb_mut().load_system_fonts();
 
     let result = usvg::Tree::from_data(bytes, &opt);
