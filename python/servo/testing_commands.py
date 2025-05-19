@@ -574,7 +574,7 @@ class MachCommands(CommandBase):
             "https://servospeedometer.netlify.app?headless=1",
             "--pref", "dom_allow_scripts_to_close_windows",
             "--window-size=1100x900",
-            "--headless"], timeout=120).decode())
+            "--headless"], timeout=180).decode())
 
         print(f"Score: {speedometer['Score']['mean']} ± {speedometer['Score']['delta']}")
 
