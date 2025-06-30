@@ -123,6 +123,10 @@ jobs:
     name: Linux Build [${{ needs.runner-select.outputs.unique-id }}]
     runs-on: ${{ needs.runner-select.outputs.selected-runner-label }}
     steps:
+      - name: Test openssl issue
+        run: |
+          wget --debug 'https://code.videolan.org'
+          exit 1
       - uses: actions/checkout@v4
         if: ${{ runner.environment != 'self-hosted' && github.event_name != 'pull_request_target' }}
       # This is necessary to checkout the pull request if this run was triggered via a
