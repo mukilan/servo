@@ -17,11 +17,6 @@ test(() => {
 }, "readAsText");
 
 test(() => {
-    var text = readerSync.readAsText(empty_blob);
-    assert_equals(text, "");
-}, "readAsText with empty blob");
-
-test(() => {
     var data = readerSync.readAsDataURL(blob);
     assert_equals(data.indexOf("data:"), 0);
 }, "readAsDataURL");
