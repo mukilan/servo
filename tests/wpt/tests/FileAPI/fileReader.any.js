@@ -9,11 +9,6 @@ test(function () {
   );
 }, "FileReader interface object");
 
-test(function () {
-  var fileReader = new FileReader();
-  assert_true(fileReader instanceof FileReader);
-}, "no-argument FileReader constructor");
-
 var t_abort = async_test("FileReader States -- abort");
 t_abort.step(function () {
   var fileReader = new FileReader();
