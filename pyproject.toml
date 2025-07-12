@@ -33,7 +33,6 @@ search-path = [
     "tests/wpt/tests/tools/wptrunner",
     "tests/wpt/tests/tools/wptserve",
     "python/mach",
-    "python/wpt",
 ]
 project-includes = [
     "python/wpt/**/*.py",
