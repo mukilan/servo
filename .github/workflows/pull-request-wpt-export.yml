@@ -21,6 +21,7 @@ jobs:
           git clone --depth 1 ${{ github.event.repository.clone_url}} servo
           cd servo
           git fetch origin pull/${{ github.event.pull_request.number}}/head:pr --depth ${{ env.PR_FETCH_DEPTH }}
+          echo "Using export script from $(git log -1 --format=%H)"
       - name: Check out wpt
         uses: actions/checkout@v4
         with:
