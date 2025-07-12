@@ -7,7 +7,6 @@
 # option. This file may not be copied, modified, or distributed
 # except according to those terms.
 
-from argparse import ArgumentParser
 import os
 import sys
 
@@ -26,7 +25,7 @@ import localpaths  # noqa: F401,E402
 import wptrunner.wptcommandline  # noqa: E402
 
 
-def create_parser() -> ArgumentParser:
+def create_parser():
     parser = wptrunner.wptcommandline.create_parser()
     parser.add_argument(
         "--rr-chaos", default=False, action="store_true", help="Run under chaos mode in rr until a failure is captured"
@@ -61,5 +60,5 @@ def create_parser() -> ArgumentParser:
     return parser
 
 
-def run_tests() -> bool:
+def run_tests():
     return test.run_tests()

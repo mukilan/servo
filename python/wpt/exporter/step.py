@@ -36,13 +36,13 @@ PATCH_FILE_NAME = "tmp.patch"
 
 
 class Step:
-    def __init__(self, name) -> None:
+    def __init__(self, name):
         self.name = name
 
     def provides(self) -> Optional[AsyncValue]:
         return None
 
-    def run(self, run: SyncRun) -> None:
+    def run(self, _: SyncRun):
         return
 
 
@@ -50,31 +50,31 @@ T = TypeVar("T")
 
 
 class AsyncValue(Generic[T]):
-    def __init__(self, value: Optional[T] = None) -> None:
+    def __init__(self, value: Optional[T] = None):
         self._value = value
 
-    def resolve(self, value: Optional[T]) -> None:
+    def resolve(self, value: T):
         self._value = value
 
     def value(self) -> T:
         assert self._value is not None
         return self._value
 
-    def has_value(self) -> bool:
+    def has_value(self):
         return self._value is not None
 
 
 class CreateOrUpdateBranchForPRStep(Step):
-    def __init__(self, pull_data: dict, pull_request: PullRequest) -> None:
+    def __init__(self, pull_data: dict, pull_request: PullRequest):
         Step.__init__(self, "CreateOrUpdateBranchForPRStep")
         self.pull_data = pull_data
         self.pull_request = pull_request
         self.branch: AsyncValue[GithubBranch] = AsyncValue()
 
-    def provides(self) -> AsyncValue[GithubBranch]:
+    def provides(self):
         return self.branch
 
-    def run(self, run: SyncRun) -> None:
+    def run(self, run: SyncRun):
         try:
             commits = self._get_upstreamable_commits_from_local_servo_repo(run.sync)
             branch_name = self._create_or_update_branch_for_pr(run, commits)
@@ -128,7 +128,7 @@ class CreateOrUpdateBranchForPRStep(Step):
                 ]
         return filtered_commits
 
-    def _apply_filtered_servo_commit_to_wpt(self, run: SyncRun, commit: dict) -> None:
+    def _apply_filtered_servo_commit_to_wpt(self, run: SyncRun, commit: dict):
         patch_path = os.path.join(run.sync.wpt_path, PATCH_FILE_NAME)
         strip_count = UPSTREAMABLE_PATH.count("/") + 1
 
@@ -143,7 +143,7 @@ class CreateOrUpdateBranchForPRStep(Step):
         run.sync.local_wpt_repo.run("add", "--all")
         run.sync.local_wpt_repo.run("commit", "--message", commit["message"], "--author", commit["author"])
 
-    def _create_or_update_branch_for_pr(self, run: SyncRun, commits: list[dict], pre_commit_callback=None) -> str:
+    def _create_or_update_branch_for_pr(self, run: SyncRun, commits: list[dict], pre_commit_callback=None):
         branch_name = wpt_branch_name_from_servo_pr_number(self.pull_data["number"])
         try:
             # Create a new branch with a unique name that is consistent between
@@ -169,6 +169,7 @@ class CreateOrUpdateBranchForPRStep(Step):
                 remote_url = f"https://{user}:{token}@github.com/{repo}.git"
                 run.sync.local_wpt_repo.run("push", "-f", remote_url, branch_name)
 
+            return branch_name
         finally:
             try:
                 run.sync.local_wpt_repo.run("checkout", "master")
@@ -176,15 +177,13 @@ class CreateOrUpdateBranchForPRStep(Step):
             except Exception:
                 pass
 
-        return branch_name
-
 
 class RemoveBranchForPRStep(Step):
-    def __init__(self, pull_request) -> None:
+    def __init__(self, pull_request):
         Step.__init__(self, "RemoveBranchForPRStep")
         self.branch_name = wpt_branch_name_from_servo_pr_number(pull_request["number"])
 
-    def run(self, run: SyncRun) -> None:
+    def run(self, run: SyncRun):
         self.name += f":{run.sync.downstream_wpt.get_branch(self.branch_name)}"
         logging.info("  -> Removing branch used for upstream PR")
         if not run.sync.suppress_force_push:
@@ -202,7 +201,7 @@ class ChangePRStep(Step):
         state: str,
         title: Optional[str] = None,
         body: Optional[str] = None,
-    ) -> None:
+    ):
         name = f"ChangePRStep:{pull_request}:{state}"
         if title:
             name += f":{title}"
@@ -213,7 +212,7 @@ class ChangePRStep(Step):
         self.title = title
         self.body = body
 
-    def run(self, run: SyncRun) -> None:
+    def run(self, run: SyncRun):
         body = self.body
         if body:
             body = run.prepare_body_text(body)
@@ -223,12 +222,12 @@ class ChangePRStep(Step):
 
 
 class MergePRStep(Step):
-    def __init__(self, pull_request: PullRequest, labels_to_remove: list[str] = []) -> None:
+    def __init__(self, pull_request: PullRequest, labels_to_remove: list[str] = []):
         Step.__init__(self, f"MergePRStep:{pull_request}")
         self.pull_request = pull_request
         self.labels_to_remove = labels_to_remove
 
-    def run(self, run: SyncRun) -> None:
+    def run(self, run: SyncRun):
         try:
             for label in self.labels_to_remove:
                 self.pull_request.remove_label(label)
@@ -251,7 +250,7 @@ class OpenPRStep(Step):
         title: str,
         body: str,
         labels: list[str],
-    ) -> None:
+    ):
         Step.__init__(self, "OpenPRStep")
         self.title = title
         self.body = body
@@ -260,10 +259,10 @@ class OpenPRStep(Step):
         self.new_pr: AsyncValue[PullRequest] = AsyncValue()
         self.labels = labels
 
-    def provides(self) -> AsyncValue[PullRequest]:
+    def provides(self):
         return self.new_pr
 
-    def run(self, run: SyncRun) -> None:
+    def run(self, run: SyncRun):
         pull_request = self.target_repo.open_pull_request(
             self.source_branch.value(), self.title, run.prepare_body_text(self.body)
         )
@@ -277,12 +276,12 @@ class OpenPRStep(Step):
 
 
 class CommentStep(Step):
-    def __init__(self, pull_request: PullRequest, comment_template: str) -> None:
+    def __init__(self, pull_request: PullRequest, comment_template: str):
         Step.__init__(self, "CommentStep")
         self.pull_request = pull_request
         self.comment_template = comment_template
 
-    def run(self, run: SyncRun) -> None:
+    def run(self, run: SyncRun):
         comment = run.make_comment(self.comment_template)
         self.name += f":{self.pull_request}:{comment}"
         self.pull_request.leave_comment(comment)
