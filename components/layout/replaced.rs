@@ -115,6 +115,7 @@ pub(crate) enum ReplacedContentKind {
     IFrame(IFrameInfo),
     Canvas(CanvasInfo),
     Video(Option<VideoInfo>),
+    SVGElement,
 }
 
 impl ReplacedContents {
@@ -153,6 +154,8 @@ impl ReplacedContents {
                     ReplacedContentKind::Video(image_key.map(|key| VideoInfo { image_key: key })),
                     natural_size_in_dots,
                 )
+            } else if let Some(_) = element.as_svg() {
+                (ReplacedContentKind::SVGElement, None)
             } else {
                 return None;
             }
@@ -390,6 +393,10 @@ impl ReplacedContents {
                     image_key: Some(image_key),
                 }))]
             },
+            ReplacedContentKind::SVGElement => {
+                println!("ReplacedContentKind::SVG Encountered");
+                vec![]
+            }
         }
     }
 

@@ -940,6 +940,7 @@ pub(crate) trait LayoutElementHelpers<'dom> {
     ) -> Option<&'dom AttrValue>;
     fn get_attr_val_for_layout(self, namespace: &Namespace, name: &LocalName) -> Option<&'dom str>;
     fn get_attr_vals_for_layout(self, name: &LocalName) -> Vec<&'dom AttrValue>;
+    fn serialize_as_xml(self) -> DOMString;
 }
 
 impl LayoutDom<'_, Element> {
@@ -1537,6 +1538,12 @@ impl<'dom> LayoutElementHelpers<'dom> for LayoutDom<'dom, Element> {
                 }
             })
             .collect()
+    }
+
+    fn serialize_as_xml(self) -> DOMString {
+        self.upcast::<Node>()
+            .unsafe_get()
+            .xml_serialize(TraversalScope::IncludeNode)
     }
 }
 

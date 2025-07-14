@@ -8,11 +8,12 @@ use std::marker::PhantomData;
 use atomic_refcell::{AtomicRef, AtomicRefCell, AtomicRefMut};
 use base::id::{BrowsingContextId, PipelineId};
 use html5ever::{local_name, ns};
+use html5ever::serialize::Serializer;
 use layout_api::wrapper_traits::{
     LayoutDataTrait, LayoutNode, ThreadSafeLayoutElement, ThreadSafeLayoutNode,
 };
 use layout_api::{
-    GenericLayoutDataTrait, LayoutDamage, LayoutElementType, LayoutNodeType as ScriptLayoutNodeType,
+    GenericLayoutDataTrait, LayoutDamage, LayoutElementType, LayoutNodeType as ScriptLayoutNodeType, SVGSVGData,
 };
 use malloc_size_of_derive::MallocSizeOf;
 use net_traits::image_cache::Image;
@@ -232,6 +233,7 @@ pub(crate) trait NodeExt<'dom> {
     fn as_canvas(&self) -> Option<(CanvasInfo, PhysicalSize<f64>)>;
     fn as_iframe(&self) -> Option<(PipelineId, BrowsingContextId)>;
     fn as_video(&self) -> Option<(Option<webrender_api::ImageKey>, Option<PhysicalSize<f64>>)>;
+    fn as_svg(&self) -> Option<(SVGSVGData, PhysicalSize<f64>)>;
     fn as_typeless_object_with_data_attribute(&self) -> Option<String>;
     fn style(&self, context: &SharedStyleContext) -> ServoArc<ComputedValues>;
 
@@ -271,6 +273,15 @@ impl<'dom> NodeExt<'dom> for ServoLayoutNode<'dom> {
             height /= density;
         }
         Some((resource, PhysicalSize::new(width, height)))
+    }
+
+    fn as_svg(&self) -> Option<(SVGSVGData, PhysicalSize<f64>)> {
+        let node = self.to_threadsafe();
+        let svg_data = node.svg_data()?;
+        let width = svg_data.width as f64;
+        let height= svg_data.height as f64;
+        println!("SVG Source {:?}", svg_data.source);
+        Some((svg_data, PhysicalSize::new(width, height)))
     }
 
     fn as_video(&self) -> Option<(Option<webrender_api::ImageKey>, Option<PhysicalSize<f64>>)> {

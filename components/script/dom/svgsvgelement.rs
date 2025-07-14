@@ -70,6 +70,7 @@ impl LayoutSVGSVGElementHelpers for LayoutDom<'_, SVGSVGElement> {
         SVGSVGData {
             width: width_attr.map_or(DEFAULT_WIDTH, |val| val.as_uint()),
             height: height_attr.map_or(DEFAULT_HEIGHT, |val| val.as_uint()),
+            source: self.upcast::<Element>().serialize_as_xml().into()
         }
     }
 }
