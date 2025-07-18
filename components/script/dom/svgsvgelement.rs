@@ -119,16 +119,11 @@ impl VirtualMethods for SVGSVGElement {
         }
     }
 
-    // fn children_changed(&self, mutation: &super::node::ChildrenMutation) {
-    //     self.super_type()
-    //         .map(|parent| parent.children_changed(mutation));
-    //     println!("XXX children_changed");
-    //     let source: String = self
-    //         .upcast::<Node>()
-    //         .html_serialize(TraversalScope::IncludeNode, false, vec![], CanGc::note())
-    //         .into();
-    //     let base64 = base64::engine::general_purpose::STANDARD.encode(source);
-    //     let source = format!("data:image/svg+xml;base64,{}", base64);
-    //     *self.serialized_data_url.borrow_mut() = source;
-    // }
+    fn children_changed(&self, mutation: &super::node::ChildrenMutation) {
+        if let Some(super_type) = self.super_type() {
+            super_type.children_changed(mutation);
+        }
+
+        *self.cached_serialized_data.borrow_mut() = None;
+    }
 }
