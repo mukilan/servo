@@ -4,8 +4,10 @@
 
 use std::sync::Arc;
 
+use embedder_traits::UntrustedNodeAddress;
 use euclid::Size2D;
 use fnv::FnvHashMap;
+use style::dom::TNode;
 use fonts::FontContext;
 use fxhash::FxHashMap;
 use layout_api::{
@@ -86,6 +88,7 @@ pub(crate) struct ImageResolver {
     /// size determined by layout. This will be shared with the script thread.
     pub pending_rasterization_images: Mutex<Vec<PendingRasterizationImage>>,
 
+    pub pending_svg_element_for_serialization: Mutex<Vec<UntrustedNodeAddress>>,
     /// A shared reference to script's map of DOM nodes with animated images. This is used
     /// to manage image animations in script and inform the script about newly animating
     /// nodes.
@@ -104,7 +107,8 @@ impl Drop for ImageResolver {
     fn drop(&mut self) {
         if !std::thread::panicking() {
             assert!(self.pending_images.lock().is_empty());
-            assert!(self.pending_rasterization_images.lock().is_empty());
+            assert!(self.pending_images.lock().is_empty());
+            assert!(self.pending_svg_element_for_serialization.lock().is_empty());
         }
     }
 }
@@ -174,7 +178,7 @@ impl ImageResolver {
         }
     }
 
-    fn get_cached_image_for_url(
+    pub(crate) fn get_cached_image_for_url(
         &self,
         node: OpaqueNode,
         url: ServoUrl,
@@ -232,6 +236,15 @@ impl ImageResolver {
                 });
         }
         result
+    }
+
+    pub(crate) fn queue_svg_element_for_serialization(
+        &self,
+        element: script::layout_dom::ServoLayoutNode<'_>,
+    ) {
+        self.pending_svg_element_for_serialization
+            .lock()
+            .push(element.opaque().into())
     }
 
     pub(crate) fn resolve_image<'a>(

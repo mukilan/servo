@@ -2,11 +2,16 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 
+use std::cell::RefCell;
+
+use base64::Engine as _;
 use dom_struct::dom_struct;
 use html5ever::{LocalName, Prefix, local_name, ns};
 use js::rust::HandleObject;
 use layout_api::SVGSVGData;
+use servo_url::ServoUrl;
 use style::attr::AttrValue;
+use xml5ever::serialize::TraversalScope;
 
 use crate::dom::attr::Attr;
 use crate::dom::bindings::inheritance::Castable;
@@ -25,6 +30,8 @@ const DEFAULT_HEIGHT: u32 = 150;
 #[dom_struct]
 pub(crate) struct SVGSVGElement {
     svggraphicselement: SVGGraphicsElement,
+    #[no_trace]
+    cached_serialized_data: RefCell<Option<ServoUrl>>,
 }
 
 impl SVGSVGElement {
@@ -35,6 +42,7 @@ impl SVGSVGElement {
     ) -> SVGSVGElement {
         SVGSVGElement {
             svggraphicselement: SVGGraphicsElement::new_inherited(local_name, prefix, document),
+            cached_serialized_data: Default::default(),
         }
     }
 
@@ -53,6 +61,19 @@ impl SVGSVGElement {
             can_gc,
         )
     }
+
+    pub(crate) fn cache_serialized_data(&self) {
+        println!("XXX cache_serialized_data");
+        let source: String = self
+            .upcast::<Node>()
+            .xml_serialize(TraversalScope::IncludeNode)
+            .into();
+        let base64 = base64::engine::general_purpose::STANDARD.encode(source);
+        let source = format!("data:image/svg+xml;base64,{}", base64);
+        if let Ok(url) = ServoUrl::parse(&source) {
+            *self.cached_serialized_data.borrow_mut() = Some(url);
+        }
+    }
 }
 
 pub(crate) trait LayoutSVGSVGElementHelpers {
@@ -70,7 +91,7 @@ impl LayoutSVGSVGElementHelpers for LayoutDom<'_, SVGSVGElement> {
         SVGSVGData {
             width: width_attr.map_or(DEFAULT_WIDTH, |val| val.as_uint()),
             height: height_attr.map_or(DEFAULT_HEIGHT, |val| val.as_uint()),
-            source: self.upcast::<Element>().serialize_as_xml().into()
+            source: self.unsafe_get().cached_serialized_data.borrow().clone(),
         }
     }
 }
@@ -84,6 +105,7 @@ impl VirtualMethods for SVGSVGElement {
         self.super_type()
             .unwrap()
             .attribute_mutated(attr, mutation, can_gc);
+        *self.cached_serialized_data.borrow_mut() = None;
     }
 
     fn parse_plain_attribute(&self, name: &LocalName, value: DOMString) -> AttrValue {
@@ -96,4 +118,17 @@ impl VirtualMethods for SVGSVGElement {
                 .parse_plain_attribute(name, value),
         }
     }
+
+    // fn children_changed(&self, mutation: &super::node::ChildrenMutation) {
+    //     self.super_type()
+    //         .map(|parent| parent.children_changed(mutation));
+    //     println!("XXX children_changed");
+    //     let source: String = self
+    //         .upcast::<Node>()
+    //         .html_serialize(TraversalScope::IncludeNode, false, vec![], CanGc::note())
+    //         .into();
+    //     let base64 = base64::engine::general_purpose::STANDARD.encode(source);
+    //     let source = format!("data:image/svg+xml;base64,{}", base64);
+    //     *self.serialized_data_url.borrow_mut() = source;
+    // }
 }

@@ -7,13 +7,14 @@ use std::marker::PhantomData;
 
 use atomic_refcell::{AtomicRef, AtomicRefCell, AtomicRefMut};
 use base::id::{BrowsingContextId, PipelineId};
-use html5ever::{local_name, ns};
 use html5ever::serialize::Serializer;
+use html5ever::{local_name, ns};
 use layout_api::wrapper_traits::{
     LayoutDataTrait, LayoutNode, ThreadSafeLayoutElement, ThreadSafeLayoutNode,
 };
 use layout_api::{
-    GenericLayoutDataTrait, LayoutDamage, LayoutElementType, LayoutNodeType as ScriptLayoutNodeType, SVGSVGData,
+    GenericLayoutDataTrait, LayoutDamage, LayoutElementType,
+    LayoutNodeType as ScriptLayoutNodeType, SVGSVGData,
 };
 use malloc_size_of_derive::MallocSizeOf;
 use net_traits::image_cache::Image;
@@ -279,8 +280,8 @@ impl<'dom> NodeExt<'dom> for ServoLayoutNode<'dom> {
         let node = self.to_threadsafe();
         let svg_data = node.svg_data()?;
         let width = svg_data.width as f64;
-        let height= svg_data.height as f64;
-        println!("SVG Source {:?}", svg_data.source);
+        let height = svg_data.height as f64;
+        //println!("SVG Source {:?}", svg_data.source);
         Some((svg_data, PhysicalSize::new(width, height)))
     }
 

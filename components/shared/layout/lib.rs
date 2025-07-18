@@ -132,7 +132,7 @@ pub struct HTMLCanvasData {
 pub struct SVGSVGData {
     pub width: u32,
     pub height: u32,
-    pub source: String
+    pub source: Option<ServoUrl>
 }
 
 /// The address of a node known to be valid. These are sent from script to layout.
@@ -390,6 +390,7 @@ pub struct ReflowResult {
     pub pending_images: Vec<PendingImage>,
     /// The list of vector images that were encountered that still need to be rasterized.
     pub pending_rasterization_images: Vec<PendingRasterizationImage>,
+    pub pending_svg_element_for_serialization: Vec<UntrustedNodeAddress>,
     /// The list of iframes in this layout and their sizes, used in order
     /// to communicate them with the Constellation and also the `Window`
     /// element of their content pages.

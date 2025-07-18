@@ -12,6 +12,7 @@ use malloc_size_of_derive::MallocSizeOf;
 use net_traits::image_cache::{Image, ImageOrMetadataAvailable, UsePlaceholder};
 use script::layout_dom::ServoLayoutNode;
 use servo_arc::Arc as ServoArc;
+use servo_url::ServoUrl;
 use style::Zero;
 use style::computed_values::object_fit::T as ObjectFit;
 use style::dom::TNode;
@@ -115,7 +116,7 @@ pub(crate) enum ReplacedContentKind {
     IFrame(IFrameInfo),
     Canvas(CanvasInfo),
     Video(Option<VideoInfo>),
-    SVGElement,
+    SVGElement(Image),
 }
 
 impl ReplacedContents {
@@ -154,8 +155,20 @@ impl ReplacedContents {
                     ReplacedContentKind::Video(image_key.map(|key| VideoInfo { image_key: key })),
                     natural_size_in_dots,
                 )
-            } else if let Some(_) = element.as_svg() {
-                (ReplacedContentKind::SVGElement, None)
+            } else if let Some((svg_data, _)) = element.as_svg() {
+                let Some(svg_source) = svg_data.source else {
+                    context.image_resolver.queue_svg_element_for_serialization(element);
+                    return None;
+                };
+                let result = context
+                    .image_resolver
+                    .get_cached_image_for_url(element.opaque(), svg_source, UsePlaceholder::Yes)
+                    .ok()?;
+                let size = result.metadata();
+                (
+                    ReplacedContentKind::SVGElement(result),
+                    Some(PhysicalSize::new(size.width as f64, size.height as f64)),
+                )
             } else {
                 return None;
             }
@@ -393,10 +406,36 @@ impl ReplacedContents {
                     image_key: Some(image_key),
                 }))]
             },
-            ReplacedContentKind::SVGElement => {
+            ReplacedContentKind::SVGElement(image) => {
                 println!("ReplacedContentKind::SVG Encountered");
-                vec![]
-            }
+                let id = match image {
+                    Image::Raster(raster_image) => {
+                        unreachable!("SVG Element can't contain a raster")
+                    },
+                    Image::Vector(vector_image) => {
+                        let scale = layout_context.style_context.device_pixel_ratio();
+                        let width = object_fit_size.width.scale_by(scale.0).to_px();
+                        let height = object_fit_size.height.scale_by(scale.0).to_px();
+                        let size = Size2D::new(width, height);
+                        let tag = self.base_fragment_info.tag.unwrap();
+                        layout_context
+                            .image_resolver
+                            .rasterize_vector_image(vector_image.id, size, tag.node)
+                            .and_then(|i| i.id)
+                    },
+                };
+                id.map(|image_key| {
+                    Fragment::Image(ArcRefCell::new(ImageFragment {
+                        base: self.base_fragment_info.into(),
+                        style: style.clone(),
+                        rect,
+                        clip,
+                        image_key: Some(image_key),
+                    }))
+                })
+                .into_iter()
+                .collect()
+            },
         }
     }
 
