@@ -12,7 +12,6 @@ use malloc_size_of_derive::MallocSizeOf;
 use net_traits::image_cache::{Image, ImageOrMetadataAvailable, UsePlaceholder};
 use script::layout_dom::ServoLayoutNode;
 use servo_arc::Arc as ServoArc;
-use servo_url::ServoUrl;
 use style::Zero;
 use style::computed_values::object_fit::T as ObjectFit;
 use style::dom::TNode;
@@ -157,7 +156,9 @@ impl ReplacedContents {
                 )
             } else if let Some((svg_data, _)) = element.as_svg() {
                 let Some(svg_source) = svg_data.source else {
-                    context.image_resolver.queue_svg_element_for_serialization(element);
+                    context
+                        .image_resolver
+                        .queue_svg_element_for_serialization(element);
                     return None;
                 };
                 let result = context
@@ -409,7 +410,7 @@ impl ReplacedContents {
             ReplacedContentKind::SVGElement(image) => {
                 println!("ReplacedContentKind::SVG Encountered");
                 let id = match image {
-                    Image::Raster(raster_image) => {
+                    Image::Raster(_) => {
                         unreachable!("SVG Element can't contain a raster")
                     },
                     Image::Vector(vector_image) => {

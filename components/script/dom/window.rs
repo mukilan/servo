@@ -32,7 +32,9 @@ use devtools_traits::{ScriptToDevtoolsControlMsg, TimelineMarker, TimelineMarker
 use dom_struct::dom_struct;
 use embedder_traits::user_content_manager::{UserContentManager, UserScript};
 use embedder_traits::{
-    AlertResponse, ConfirmResponse, EmbedderMsg, GamepadEvent, GamepadSupportedHapticEffects, GamepadUpdateType, PromptResponse, SimpleDialog, Theme, UntrustedNodeAddress, ViewportDetails, WebDriverJSError, WebDriverJSResult
+    AlertResponse, ConfirmResponse, EmbedderMsg, GamepadEvent, GamepadSupportedHapticEffects,
+    GamepadUpdateType, PromptResponse, SimpleDialog, Theme, UntrustedNodeAddress, ViewportDetails,
+    WebDriverJSError, WebDriverJSResult,
 };
 use euclid::default::{Point2D as UntypedPoint2D, Rect as UntypedRect, Size2D as UntypedSize2D};
 use euclid::{Point2D, Scale, Size2D, Vector2D};
@@ -2257,7 +2259,7 @@ impl Window {
         self.handle_pending_images_post_reflow(
             results.pending_images,
             results.pending_rasterization_images,
-            results.pending_svg_element_for_serialization
+            results.pending_svg_element_for_serialization,
         );
         document
             .iframes_mut()

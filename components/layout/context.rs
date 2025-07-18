@@ -7,7 +7,6 @@ use std::sync::Arc;
 use embedder_traits::UntrustedNodeAddress;
 use euclid::Size2D;
 use fnv::FnvHashMap;
-use style::dom::TNode;
 use fonts::FontContext;
 use fxhash::FxHashMap;
 use layout_api::{
@@ -21,7 +20,7 @@ use parking_lot::{Mutex, RwLock};
 use pixels::RasterImage;
 use servo_url::{ImmutableOrigin, ServoUrl};
 use style::context::SharedStyleContext;
-use style::dom::OpaqueNode;
+use style::dom::{OpaqueNode, TNode};
 use style::values::computed::image::{Gradient, Image};
 use webrender_api::units::{DeviceIntSize, DeviceSize};
 

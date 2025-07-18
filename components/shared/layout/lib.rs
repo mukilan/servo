@@ -132,7 +132,7 @@ pub struct HTMLCanvasData {
 pub struct SVGSVGData {
     pub width: u32,
     pub height: u32,
-    pub source: Option<ServoUrl>
+    pub source: Option<ServoUrl>,
 }
 
 /// The address of a node known to be valid. These are sent from script to layout.
