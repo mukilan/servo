@@ -163,7 +163,7 @@ impl ReplacedContents {
                 };
                 let result = context
                     .image_resolver
-                    .get_cached_image_for_url(element.opaque(), svg_source, UsePlaceholder::Yes)
+                    .get_cached_image_for_url(element.opaque(), svg_source, UsePlaceholder::No)
                     .ok()?;
                 let size = result.metadata();
                 (
