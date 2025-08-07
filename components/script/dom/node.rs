@@ -3150,17 +3150,17 @@ impl Node {
     pub(crate) fn xml_serialize(
         &self,
         traversal_scope: xml_serialize::TraversalScope,
-    ) -> DOMString {
+    ) -> Result<DOMString, ()> {
         let mut writer = vec![];
         xml_serialize::serialize(
             &mut writer,
             &self,
             xml_serialize::SerializeOpts { traversal_scope },
         )
-        .expect("Cannot serialize node");
+        .map_err(|_| ())?;
 
         // FIXME(ajeffrey): Directly convert UTF8 to DOMString
-        DOMString::from(String::from_utf8(writer).unwrap())
+        Ok(DOMString::from(String::from_utf8(writer).unwrap()))
     }
 
     /// <https://html.spec.whatwg.org/multipage/#fragment-serializing-algorithm-steps>
@@ -3187,6 +3187,7 @@ impl Node {
         // TODO: xml5ever doesn't seem to want require_well_formed
         let _ = require_well_formed;
         self.xml_serialize(xml_serialize::TraversalScope::ChildrenOnly(None))
+            .unwrap()
     }
 }
 

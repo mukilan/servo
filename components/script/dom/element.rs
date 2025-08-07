@@ -3831,6 +3831,7 @@ impl ElementMethods<crate::DomTypeHolder> for Element {
         } else {
             self.upcast::<Node>()
                 .xml_serialize(XmlChildrenOnly(Some(qname)))
+                .map_err(|_| Error::InvalidState)?
         };
 
         Ok(TrustedHTMLOrNullIsEmptyString::NullIsEmptyString(result))
@@ -3888,7 +3889,9 @@ impl ElementMethods<crate::DomTypeHolder> for Element {
             self.upcast::<Node>()
                 .html_serialize(IncludeNode, false, vec![], can_gc)
         } else {
-            self.upcast::<Node>().xml_serialize(XmlIncludeNode)
+            self.upcast::<Node>()
+                .xml_serialize(XmlIncludeNode)
+                .map_err(|_| Error::InvalidState)?
         };
 
         Ok(TrustedHTMLOrNullIsEmptyString::NullIsEmptyString(result))
