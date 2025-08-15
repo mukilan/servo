@@ -82,8 +82,8 @@ jobs:
         id: setup-ndk
         with:
           ndk-version: r28
-      - name: Setup Gradle caches
-        uses: gradle/actions/setup-gradle@v4
+      # - name: Setup Gradle caches
+      #   uses: gradle/actions/setup-gradle@v4
       - name: Trigger initial download of Gradle with retries
         run: |
           for i in {1..4}; do
