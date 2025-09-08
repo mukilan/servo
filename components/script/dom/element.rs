@@ -16,7 +16,6 @@ use cssparser::match_ignore_ascii_case;
 use devtools_traits::AttrInfo;
 use dom_struct::dom_struct;
 use embedder_traits::InputMethodType;
-use euclid::Vector2D;
 use euclid::default::{Rect, Size2D};
 use html5ever::serialize::TraversalScope;
 use html5ever::serialize::TraversalScope::{ChildrenOnly, IncludeNode};
@@ -24,7 +23,7 @@ use html5ever::{LocalName, Namespace, Prefix, QualName, local_name, namespace_pr
 use js::jsapi::Heap;
 use js::jsval::JSVal;
 use js::rust::HandleObject;
-use layout_api::{LayoutDamage, ScrollContainerQueryType, ScrollContainerResponse};
+use layout_api::LayoutDamage;
 use net_traits::ReferrerPolicy;
 use net_traits::request::CorsSettings;
 use selectors::Element as SelectorsElement;
@@ -35,7 +34,6 @@ use selectors::sink::Push;
 use servo_arc::Arc;
 use style::applicable_declarations::ApplicableDeclarationBlock;
 use style::attr::{AttrValue, LengthOrPercentageOrAuto};
-use style::computed_values::position::T as Position;
 use style::context::QuirksMode;
 use style::invalidation::element::restyle_hints::RestyleHint;
 use style::properties::longhands::{
@@ -61,7 +59,6 @@ use style::values::{AtomIdent, AtomString, CSSFloat, computed, specified};
 use style::{ArcSlice, CaseSensitivityExt, dom_apis, thread_state};
 use stylo_atoms::Atom;
 use stylo_dom::ElementState;
-use webrender_api::units::LayoutVector2D;
 use xml5ever::serialize::TraversalScope::{
     ChildrenOnly as XmlChildrenOnly, IncludeNode as XmlIncludeNode,
 };
@@ -73,7 +70,7 @@ use crate::dom::bindings::cell::{DomRefCell, Ref, RefMut};
 use crate::dom::bindings::codegen::Bindings::AttrBinding::AttrMethods;
 use crate::dom::bindings::codegen::Bindings::DocumentBinding::DocumentMethods;
 use crate::dom::bindings::codegen::Bindings::ElementBinding::{
-    ElementMethods, GetHTMLOptions, ScrollIntoViewContainer, ScrollLogicalPosition, ShadowRootInit,
+    ElementMethods, GetHTMLOptions, ShadowRootInit,
 };
 use crate::dom::bindings::codegen::Bindings::FunctionBinding::Function;
 use crate::dom::bindings::codegen::Bindings::HTMLTemplateElementBinding::HTMLTemplateElementMethods;
@@ -85,8 +82,7 @@ use crate::dom::bindings::codegen::Bindings::WindowBinding::{
     ScrollBehavior, ScrollToOptions, WindowMethods,
 };
 use crate::dom::bindings::codegen::UnionTypes::{
-    BooleanOrScrollIntoViewOptions, NodeOrString, TrustedHTMLOrNullIsEmptyString,
-    TrustedHTMLOrString,
+    NodeOrString, TrustedHTMLOrNullIsEmptyString, TrustedHTMLOrString,
     TrustedHTMLOrTrustedScriptOrTrustedScriptURLOrString as TrustedTypeOrString,
     TrustedScriptURLOrUSVString,
 };
@@ -161,7 +157,7 @@ use crate::dom::mutationobserver::{Mutation, MutationObserver};
 use crate::dom::namednodemap::NamedNodeMap;
 use crate::dom::node::{
     BindContext, ChildrenMutation, CloneChildrenFlag, LayoutNodeHelpers, Node, NodeDamage,
-    NodeFlags, NodeTraits, ShadowIncluding, UnbindContext, from_untrusted_node_address,
+    NodeFlags, NodeTraits, ShadowIncluding, UnbindContext,
 };
 use crate::dom::nodelist::NodeList;
 use crate::dom::promise::Promise;
@@ -270,38 +266,6 @@ impl FromStr for AdjacentPosition {
             "beforeend"   => Ok(AdjacentPosition::BeforeEnd),
             "afterend"    => Ok(AdjacentPosition::AfterEnd),
             _             => Err(Error::Syntax(None))
-        }
-    }
-}
-
-/// Represents a scrolling box that can be either an element or the viewport
-/// <https://drafts.csswg.org/cssom-view/#scrolling-box>
-enum ScrollingBox {
-    Element(DomRoot<Element>),
-    Viewport(DomRoot<Document>),
-}
-
-impl ScrollingBox {
-    fn scroll_position(&self) -> LayoutVector2D {
-        match self {
-            ScrollingBox::Element(element) => element
-                .owner_window()
-                .scroll_offset_query(element.upcast::<Node>()),
-            ScrollingBox::Viewport(document) => document.window().scroll_offset(),
-        }
-    }
-
-    fn parent(&self) -> Option<ScrollingBox> {
-        match self {
-            ScrollingBox::Element(element) => element.scrolling_box(),
-            ScrollingBox::Viewport(_) => None,
-        }
-    }
-
-    fn node(&self) -> &Node {
-        match self {
-            ScrollingBox::Element(element) => element.upcast(),
-            ScrollingBox::Viewport(document) => document.upcast(),
         }
     }
 }
@@ -868,323 +832,6 @@ impl Element {
         self.ensure_rare_data()
             .registered_intersection_observers
             .retain(|reg_obs| *reg_obs.observer != *observer)
-    }
-
-    #[allow(unsafe_code)]
-    fn scrolling_box(&self) -> Option<ScrollingBox> {
-        self.owner_window()
-            .scroll_container_query(self.upcast(), ScrollContainerQueryType::ForScrollIntoView)
-            .and_then(|response| match response {
-                ScrollContainerResponse::Viewport => {
-                    Some(ScrollingBox::Viewport(self.owner_document()))
-                },
-                ScrollContainerResponse::Element(parent_node_address) => {
-                    let node = unsafe { from_untrusted_node_address(parent_node_address) };
-                    Some(ScrollingBox::Element(DomRoot::downcast(node)?))
-                },
-            })
-    }
-
-    /// <https://drafts.csswg.org/cssom-view/#scroll-a-target-into-view>
-    fn scroll_into_view_with_options(
-        &self,
-        behavior: ScrollBehavior,
-        block: ScrollLogicalPosition,
-        inline: ScrollLogicalPosition,
-        container: Option<&Element>,
-    ) {
-        // Step 1: For each ancestor element or viewport that establishes a scrolling box `scrolling
-        // box`, in order of innermost to outermost scrolling box, run these substeps:
-        let mut parent_scrolling_box = self.scrolling_box();
-        while let Some(scrolling_box) = parent_scrolling_box {
-            parent_scrolling_box = scrolling_box.parent();
-
-            // Step 1.1: If the Document associated with `target` is not same origin with the
-            // Document associated with the element or viewport associated with `scrolling box`,
-            // terminate these steps.
-            //
-            // TODO: Handle this. We currently do not chain up to parent Documents.
-
-            // Step 1.2 Let `position` be the scroll position resulting from running the steps to
-            // determine the scroll-into-view position of `target` with `behavior` as the scroll
-            // behavior, `block` as the block flow position, `inline` as the inline base direction
-            // position and `scrolling box` as the scrolling box.
-            let position = self.determine_scroll_into_view_position(&scrolling_box, block, inline);
-
-            // Step 1.3: If `position` is not the same as `scrolling box`’s current scroll position, or
-            // `scrolling box` has an ongoing smooth scroll,
-            //
-            // TODO: Handle smooth scrolling.
-            if position != scrolling_box.scroll_position() {
-                match &scrolling_box {
-                    //  ↪ If `scrolling box` is associated with an element
-                    ScrollingBox::Element(element) => {
-                        // Perform a scroll of the element’s scrolling box to `position`,
-                        // with the `element` as the associated element and `behavior` as the
-                        // scroll behavior.
-                        element
-                            .owner_window()
-                            .scroll_an_element(element, position.x, position.y, behavior);
-                    },
-                    //  ↪ If `scrolling box` is associated with a viewport
-                    ScrollingBox::Viewport(document) => {
-                        // Step 1: Let `document` be the viewport’s associated Document.
-                        // Step 2: Let `root element` be document’s root element, if there is one, or
-                        // null otherwise.
-                        // Step 3: Perform a scroll of the viewport to `position`, with `root element`
-                        // as the associated element and `behavior` as the scroll behavior.
-                        document.window().scroll(position.x, position.y, behavior);
-                    },
-                }
-            }
-
-            // Step 1.4: If `container` is not null and either `scrolling box` is a shadow-including
-            // inclusive ancestor of `container` or is a viewport whose document is a shadow-including
-            // inclusive ancestor of `container`, abort the rest of these steps.
-            if container.is_some_and(|container| {
-                let container_node = container.upcast::<Node>();
-                scrolling_box
-                    .node()
-                    .is_shadow_including_inclusive_ancestor_of(container_node)
-            }) {
-                break;
-            }
-        }
-    }
-
-    /// <https://drafts.csswg.org/cssom-view/#element-scrolling-members>
-    fn determine_scroll_into_view_position(
-        &self,
-        scrolling_box: &ScrollingBox,
-        block: ScrollLogicalPosition,
-        inline: ScrollLogicalPosition,
-    ) -> LayoutVector2D {
-        let target_bounding_box = self.upcast::<Node>().border_box().unwrap_or_default();
-
-        let device_pixel_ratio = self
-            .upcast::<Node>()
-            .owner_doc()
-            .window()
-            .device_pixel_ratio()
-            .get();
-
-        // Target element bounds
-        let element_left = target_bounding_box
-            .origin
-            .x
-            .to_nearest_pixel(device_pixel_ratio);
-        let element_top = target_bounding_box
-            .origin
-            .y
-            .to_nearest_pixel(device_pixel_ratio);
-        let element_width = target_bounding_box
-            .size
-            .width
-            .to_nearest_pixel(device_pixel_ratio);
-        let element_height = target_bounding_box
-            .size
-            .height
-            .to_nearest_pixel(device_pixel_ratio);
-        let element_right = element_left + element_width;
-        let element_bottom = element_top + element_height;
-
-        let (target_x, target_y) = match scrolling_box {
-            ScrollingBox::Viewport(document) => {
-                let window = document.window();
-                let viewport_width = window.InnerWidth() as f32;
-                let viewport_height = window.InnerHeight() as f32;
-                let current_scroll_x = window.ScrollX() as f32;
-                let current_scroll_y = window.ScrollY() as f32;
-
-                // For viewport scrolling, we need to add current scroll to get document-relative positions
-                let document_element_left = element_left + current_scroll_x;
-                let document_element_top = element_top + current_scroll_y;
-                let document_element_right = element_right + current_scroll_x;
-                let document_element_bottom = element_bottom + current_scroll_y;
-
-                (
-                    self.calculate_scroll_position_one_axis(
-                        inline,
-                        document_element_left,
-                        document_element_right,
-                        element_width,
-                        viewport_width,
-                        current_scroll_x,
-                    ),
-                    self.calculate_scroll_position_one_axis(
-                        block,
-                        document_element_top,
-                        document_element_bottom,
-                        element_height,
-                        viewport_height,
-                        current_scroll_y,
-                    ),
-                )
-            },
-            ScrollingBox::Element(scrolling_element) => {
-                let scrolling_node = scrolling_element.upcast::<Node>();
-                let scrolling_box = scrolling_node.border_box().unwrap_or_default();
-                let scrolling_left = scrolling_box.origin.x.to_nearest_pixel(device_pixel_ratio);
-                let scrolling_top = scrolling_box.origin.y.to_nearest_pixel(device_pixel_ratio);
-                let scrolling_width = scrolling_box
-                    .size
-                    .width
-                    .to_nearest_pixel(device_pixel_ratio);
-                let scrolling_height = scrolling_box
-                    .size
-                    .height
-                    .to_nearest_pixel(device_pixel_ratio);
-
-                // Calculate element position in scroller's content coordinate system
-                // Element's viewport position relative to scroller, then add scroll offset to get content position
-                let viewport_relative_left = element_left - scrolling_left;
-                let viewport_relative_top = element_top - scrolling_top;
-                let viewport_relative_right = element_right - scrolling_left;
-                let viewport_relative_bottom = element_bottom - scrolling_top;
-
-                // For absolutely positioned elements, we need to account for the positioning context
-                // If the element is positioned relative to an ancestor that's within the scrolling container,
-                // we need to adjust coordinates accordingly
-                let (
-                    adjusted_relative_left,
-                    adjusted_relative_top,
-                    adjusted_relative_right,
-                    adjusted_relative_bottom,
-                ) = {
-                    // Check if this element has a positioned ancestor between it and the scrolling container
-                    let mut current_node = self.upcast::<Node>().GetParentNode();
-                    let mut final_coords = (
-                        viewport_relative_left,
-                        viewport_relative_top,
-                        viewport_relative_right,
-                        viewport_relative_bottom,
-                    );
-
-                    while let Some(node) = current_node {
-                        // Stop if we reach the scrolling container
-                        if &*node == scrolling_node {
-                            break;
-                        }
-
-                        // Check if this node establishes a positioning context and has position relative/absolute
-                        if let Some(element) = node.downcast::<Element>() {
-                            if let Some(computed_style) = element.style() {
-                                let position = computed_style.get_box().position;
-
-                                if matches!(position, Position::Relative | Position::Absolute) {
-                                    // If this element establishes a positioning context,
-                                    // Get its bounding box to calculate the offset
-                                    let positioning_box = node.border_box().unwrap_or_default();
-                                    let positioning_left = positioning_box
-                                        .origin
-                                        .x
-                                        .to_nearest_pixel(device_pixel_ratio);
-                                    let positioning_top = positioning_box
-                                        .origin
-                                        .y
-                                        .to_nearest_pixel(device_pixel_ratio);
-
-                                    // Calculate the offset of the positioning context relative to the scrolling container
-                                    let offset_left = positioning_left - scrolling_left;
-                                    let offset_top = positioning_top - scrolling_top;
-
-                                    // Adjust the coordinates by subtracting the positioning context offset
-                                    final_coords = (
-                                        viewport_relative_left - offset_left,
-                                        viewport_relative_top - offset_top,
-                                        viewport_relative_right - offset_left,
-                                        viewport_relative_bottom - offset_top,
-                                    );
-                                    break;
-                                }
-                            }
-                        }
-
-                        current_node = node.GetParentNode();
-                    }
-
-                    final_coords
-                };
-
-                let current_scroll_x = scrolling_element.ScrollLeft() as f32;
-                let current_scroll_y = scrolling_element.ScrollTop() as f32;
-                let content_element_left = adjusted_relative_left + current_scroll_x;
-                let content_element_top = adjusted_relative_top + current_scroll_y;
-                let content_element_right = adjusted_relative_right + current_scroll_x;
-                let content_element_bottom = adjusted_relative_bottom + current_scroll_y;
-
-                (
-                    self.calculate_scroll_position_one_axis(
-                        inline,
-                        content_element_left,
-                        content_element_right,
-                        element_width,
-                        scrolling_width,
-                        current_scroll_x,
-                    ),
-                    self.calculate_scroll_position_one_axis(
-                        block,
-                        content_element_top,
-                        content_element_bottom,
-                        element_height,
-                        scrolling_height,
-                        current_scroll_y,
-                    ),
-                )
-            },
-        };
-
-        Vector2D::new(target_x, target_y)
-    }
-
-    fn calculate_scroll_position_one_axis(
-        &self,
-        alignment: ScrollLogicalPosition,
-        element_start: f32,
-        element_end: f32,
-        element_size: f32,
-        container_size: f32,
-        current_scroll_offset: f32,
-    ) -> f32 {
-        match alignment {
-            // Step 1 & 5: If inline is "start", then align element start edge with scrolling box start edge.
-            ScrollLogicalPosition::Start => element_start,
-            // Step 2 & 6: If inline is "end", then align element end edge with
-            // scrolling box end edge.
-            ScrollLogicalPosition::End => element_end - container_size,
-            // Step 3 & 7: If inline is "center", then align the center of target bounding
-            // border box with the center of scrolling box in scrolling box’s inline base direction.
-            ScrollLogicalPosition::Center => element_start + (element_size - container_size) / 2.0,
-            // Step 4 & 8: If inline is "nearest",
-            ScrollLogicalPosition::Nearest => {
-                let viewport_start = current_scroll_offset;
-                let viewport_end = current_scroll_offset + container_size;
-
-                // Step 4.2 & 8.2: If element start edge is outside scrolling box start edge and element
-                // size is less than scrolling box size or If element end edge is outside
-                // scrolling box end edge and element size is greater than scrolling box size:
-                // Align element start edge with scrolling box start edge.
-                if (element_start < viewport_start && element_size <= container_size) ||
-                    (element_end > viewport_end && element_size >= container_size)
-                {
-                    element_start
-                }
-                // Step 4.3 & 8.3: If element end edge is outside scrolling box start edge and element
-                // size is greater than scrolling box size or If element start edge is outside
-                // scrolling box end edge and element size is less than scrolling box size:
-                // Align element end edge with scrolling box end edge.
-                else if (element_end > viewport_end && element_size < container_size) ||
-                    (element_start < viewport_start && element_size > container_size)
-                {
-                    element_end - container_size
-                }
-                // Step 4.1 & 8.1: If element start edge and element end edge are both outside scrolling
-                // box start edge and scrolling box end edge or an invalid situation: Do nothing.
-                else {
-                    current_scroll_offset
-                }
-            },
-        }
     }
 }
 
@@ -3575,7 +3222,7 @@ impl ElementMethods<crate::DomTypeHolder> for Element {
         win.scroll_an_element(self, self.ScrollLeft() as f32, y, behavior);
     }
 
-    // https://drafts.csswg.org/cssom-view/#dom-element-scrollleft
+    // https://drafts.csswg.org/cssom-view/#dom-element-scrolltop
     fn ScrollLeft(&self) -> f64 {
         let node = self.upcast::<Node>();
 
@@ -3670,52 +3317,6 @@ impl ElementMethods<crate::DomTypeHolder> for Element {
 
         // Step 11
         win.scroll_an_element(self, x, self.ScrollTop() as f32, behavior);
-    }
-
-    /// <https://drafts.csswg.org/cssom-view/#dom-element-scrollintoview>
-    fn ScrollIntoView(&self, arg: BooleanOrScrollIntoViewOptions) {
-        let (behavior, block, inline, container) = match arg {
-            // If arg is true:
-            BooleanOrScrollIntoViewOptions::Boolean(true) => (
-                ScrollBehavior::Auto,           // Step 1: Let behavior be "auto".
-                ScrollLogicalPosition::Start,   // Step 2: Let block be "start".
-                ScrollLogicalPosition::Nearest, // Step 3: Let inline be "nearest".
-                None,                           // Step 4: Let container be null.
-            ),
-            // Step 5: If arg is a ScrollIntoViewOptions dictionary, set its properties
-            // to the corresponding values in the dictionary.
-            BooleanOrScrollIntoViewOptions::ScrollIntoViewOptions(options) => (
-                options.parent.behavior,
-                options.block,
-                options.inline,
-                // Step 5.4: If the container dictionary member of options is "nearest",
-                // set container to the element.
-                if options.container == ScrollIntoViewContainer::Nearest {
-                    Some(self)
-                } else {
-                    None
-                },
-            ),
-            // Step 6: Otherwise, if arg is false, then set block to "end".
-            BooleanOrScrollIntoViewOptions::Boolean(false) => (
-                ScrollBehavior::Auto,
-                ScrollLogicalPosition::End,
-                ScrollLogicalPosition::Nearest,
-                None,
-            ),
-        };
-
-        // Step 7: If the element does not have any associated box, or is not
-        // available to user-agent features, then return.
-        if !self.has_css_layout_box() {
-            return;
-        }
-
-        // Step 8: Scroll the element into view with behavior, block, inline, and container.
-        self.scroll_into_view_with_options(behavior, block, inline, container);
-
-        // Step 9: Optionally perform some other action that brings the
-        // element to the user’s attention.
     }
 
     // https://drafts.csswg.org/cssom-view/#dom-element-scrollwidth

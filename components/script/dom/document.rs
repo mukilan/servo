@@ -47,7 +47,6 @@ use percent_encoding::percent_decode;
 use profile_traits::ipc as profile_ipc;
 use profile_traits::time::TimerMetadataFrameType;
 use regex::bytes::Regex;
-use script_bindings::codegen::GenericBindings::ElementBinding::ElementMethods;
 use script_bindings::interfaces::DocumentHelpers;
 use script_bindings::script_runtime::JSContext;
 use script_traits::{DocumentActivity, ProgressiveWebMetricType};
@@ -82,9 +81,6 @@ use crate::dom::bindings::codegen::Bindings::BeforeUnloadEventBinding::BeforeUnl
 use crate::dom::bindings::codegen::Bindings::DocumentBinding::{
     DocumentMethods, DocumentReadyState, DocumentVisibilityState, NamedPropertyValue,
 };
-use crate::dom::bindings::codegen::Bindings::ElementBinding::{
-    ScrollIntoViewContainer, ScrollIntoViewOptions, ScrollLogicalPosition,
-};
 use crate::dom::bindings::codegen::Bindings::EventBinding::Event_Binding::EventMethods;
 use crate::dom::bindings::codegen::Bindings::HTMLIFrameElementBinding::HTMLIFrameElement_Binding::HTMLIFrameElementMethods;
 use crate::dom::bindings::codegen::Bindings::HTMLInputElementBinding::HTMLInputElementMethods;
@@ -97,13 +93,12 @@ use crate::dom::bindings::codegen::Bindings::PerformanceBinding::PerformanceMeth
 use crate::dom::bindings::codegen::Bindings::PermissionStatusBinding::PermissionName;
 use crate::dom::bindings::codegen::Bindings::ShadowRootBinding::ShadowRootMethods;
 use crate::dom::bindings::codegen::Bindings::WindowBinding::{
-    FrameRequestCallback, ScrollBehavior, ScrollOptions, WindowMethods,
+    FrameRequestCallback, ScrollBehavior, WindowMethods,
 };
 use crate::dom::bindings::codegen::Bindings::XPathEvaluatorBinding::XPathEvaluatorMethods;
 use crate::dom::bindings::codegen::Bindings::XPathNSResolverBinding::XPathNSResolver;
 use crate::dom::bindings::codegen::UnionTypes::{
-    BooleanOrScrollIntoViewOptions, NodeOrString, StringOrElementCreationOptions,
-    TrustedHTMLOrString,
+    NodeOrString, StringOrElementCreationOptions, TrustedHTMLOrString,
 };
 use crate::dom::bindings::domname::{
     self, is_valid_attribute_local_name, is_valid_element_local_name, namespace_from_domstring,
@@ -1402,16 +1397,16 @@ impl Document {
                 // This is needed to ensure that the focused element is visible.
                 // Only scroll if preventScroll was not specified
                 if !prevent_scroll {
-                    elem.ScrollIntoView(BooleanOrScrollIntoViewOptions::ScrollIntoViewOptions(
-                        ScrollIntoViewOptions {
-                            parent: ScrollOptions {
-                                behavior: ScrollBehavior::Smooth,
-                            },
-                            block: ScrollLogicalPosition::Center,
-                            inline: ScrollLogicalPosition::Center,
-                            container: ScrollIntoViewContainer::All,
-                        },
-                    ));
+                    // elem.ScrollIntoView(BooleanOrScrollIntoViewOptions::ScrollIntoViewOptions(
+                    //     ScrollIntoViewOptions {
+                    //         parent: ScrollOptions {
+                    //             behavior: ScrollBehavior::Smooth,
+                    //         },
+                    //         block: ScrollLogicalPosition::Center,
+                    //         inline: ScrollLogicalPosition::Center,
+                    //         container: ScrollIntoViewContainer::All,
+                    //     },
+                    // ));
                 }
             }
         }
