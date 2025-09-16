@@ -243,7 +243,7 @@ fn create_html_element(
             if is_valid_custom_element_name(&name.local) {
                 result.set_custom_element_state(CustomElementState::Undefined);
             } else {
-                result.set_custom_element_state(CustomElementState::Uncustomized);
+                result.init_state_for_builtin_element();
             }
         },
     };

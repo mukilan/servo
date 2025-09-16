@@ -5335,6 +5335,10 @@ impl Element {
         false
     }
 
+    pub(crate) fn init_state_for_builtin_element(&self) {
+        self.set_state(ElementState::DEFINED, true);
+    }
+
     pub(crate) fn init_state_for_internals(&self) {
         self.set_enabled_state(true);
         self.set_state(ElementState::VALID, true);
