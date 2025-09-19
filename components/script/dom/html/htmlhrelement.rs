@@ -35,9 +35,10 @@ impl HTMLHRElement {
         local_name: LocalName,
         prefix: Option<Prefix>,
         document: &Document,
+        is_defined: bool,
     ) -> HTMLHRElement {
         HTMLHRElement {
-            htmlelement: HTMLElement::new_inherited(local_name, prefix, document),
+            htmlelement: HTMLElement::new_inherited(local_name, prefix, document, is_defined),
         }
     }
 
@@ -47,10 +48,13 @@ impl HTMLHRElement {
         prefix: Option<Prefix>,
         document: &Document,
         proto: Option<HandleObject>,
+        is_defined: bool,
         can_gc: CanGc,
     ) -> DomRoot<HTMLHRElement> {
         Node::reflect_node_with_proto(
-            Box::new(HTMLHRElement::new_inherited(local_name, prefix, document)),
+            Box::new(HTMLHRElement::new_inherited(
+                local_name, prefix, document, is_defined,
+            )),
             document,
             proto,
             can_gc,

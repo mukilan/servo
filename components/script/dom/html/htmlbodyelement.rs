@@ -34,9 +34,10 @@ impl HTMLBodyElement {
         local_name: LocalName,
         prefix: Option<Prefix>,
         document: &Document,
+        is_defined: bool,
     ) -> HTMLBodyElement {
         HTMLBodyElement {
-            htmlelement: HTMLElement::new_inherited(local_name, prefix, document),
+            htmlelement: HTMLElement::new_inherited(local_name, prefix, document, is_defined),
         }
     }
 
@@ -46,10 +47,13 @@ impl HTMLBodyElement {
         prefix: Option<Prefix>,
         document: &Document,
         proto: Option<HandleObject>,
+        is_defined: bool,
         can_gc: CanGc,
     ) -> DomRoot<HTMLBodyElement> {
         Node::reflect_node_with_proto(
-            Box::new(HTMLBodyElement::new_inherited(local_name, prefix, document)),
+            Box::new(HTMLBodyElement::new_inherited(
+                local_name, prefix, document, is_defined,
+            )),
             document,
             proto,
             can_gc,

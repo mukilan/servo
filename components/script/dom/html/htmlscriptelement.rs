@@ -148,10 +148,11 @@ impl HTMLScriptElement {
         prefix: Option<Prefix>,
         document: &Document,
         creator: ElementCreator,
+        is_defined: bool,
     ) -> HTMLScriptElement {
         HTMLScriptElement {
             id: ScriptId(Uuid::new_v4()),
-            htmlelement: HTMLElement::new_inherited(local_name, prefix, document),
+            htmlelement: HTMLElement::new_inherited(local_name, prefix, document, is_defined),
             already_started: Cell::new(false),
             parser_inserted: Cell::new(creator.is_parser_created()),
             non_blocking: Cell::new(!creator.is_parser_created()),
@@ -170,11 +171,12 @@ impl HTMLScriptElement {
         document: &Document,
         proto: Option<HandleObject>,
         creator: ElementCreator,
+        is_defined: bool,
         can_gc: CanGc,
     ) -> DomRoot<HTMLScriptElement> {
         Node::reflect_node_with_proto(
             Box::new(HTMLScriptElement::new_inherited(
-                local_name, prefix, document, creator,
+                local_name, prefix, document, creator, is_defined,
             )),
             document,
             proto,

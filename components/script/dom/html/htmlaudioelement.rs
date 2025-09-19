@@ -30,9 +30,12 @@ impl HTMLAudioElement {
         local_name: LocalName,
         prefix: Option<Prefix>,
         document: &Document,
+        is_defined: bool,
     ) -> HTMLAudioElement {
         HTMLAudioElement {
-            htmlmediaelement: HTMLMediaElement::new_inherited(local_name, prefix, document),
+            htmlmediaelement: HTMLMediaElement::new_inherited(
+                local_name, prefix, document, is_defined,
+            ),
         }
     }
 
@@ -42,11 +45,12 @@ impl HTMLAudioElement {
         prefix: Option<Prefix>,
         document: &Document,
         proto: Option<HandleObject>,
+        is_defined: bool,
         can_gc: CanGc,
     ) -> DomRoot<HTMLAudioElement> {
         Node::reflect_node_with_proto(
             Box::new(HTMLAudioElement::new_inherited(
-                local_name, prefix, document,
+                local_name, prefix, document, is_defined,
             )),
             document,
             proto,

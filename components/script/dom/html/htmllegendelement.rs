@@ -30,9 +30,10 @@ impl HTMLLegendElement {
         local_name: LocalName,
         prefix: Option<Prefix>,
         document: &Document,
+        is_defined: bool,
     ) -> HTMLLegendElement {
         HTMLLegendElement {
-            htmlelement: HTMLElement::new_inherited(local_name, prefix, document),
+            htmlelement: HTMLElement::new_inherited(local_name, prefix, document, is_defined),
             form_owner: Default::default(),
         }
     }
@@ -43,11 +44,12 @@ impl HTMLLegendElement {
         prefix: Option<Prefix>,
         document: &Document,
         proto: Option<HandleObject>,
+        is_defined: bool,
         can_gc: CanGc,
     ) -> DomRoot<HTMLLegendElement> {
         Node::reflect_node_with_proto(
             Box::new(HTMLLegendElement::new_inherited(
-                local_name, prefix, document,
+                local_name, prefix, document, is_defined,
             )),
             document,
             proto,

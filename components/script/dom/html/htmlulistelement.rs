@@ -24,9 +24,10 @@ impl HTMLUListElement {
         local_name: LocalName,
         prefix: Option<Prefix>,
         document: &Document,
+        is_defined: bool,
     ) -> HTMLUListElement {
         HTMLUListElement {
-            htmlelement: HTMLElement::new_inherited(local_name, prefix, document),
+            htmlelement: HTMLElement::new_inherited(local_name, prefix, document, is_defined),
         }
     }
 
@@ -36,11 +37,12 @@ impl HTMLUListElement {
         prefix: Option<Prefix>,
         document: &Document,
         proto: Option<HandleObject>,
+        is_defined: bool,
         can_gc: CanGc,
     ) -> DomRoot<HTMLUListElement> {
         Node::reflect_node_with_proto(
             Box::new(HTMLUListElement::new_inherited(
-                local_name, prefix, document,
+                local_name, prefix, document, is_defined,
             )),
             document,
             proto,

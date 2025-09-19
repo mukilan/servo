@@ -169,9 +169,10 @@ impl HTMLSlotElement {
         local_name: LocalName,
         prefix: Option<Prefix>,
         document: &Document,
+        is_defined: bool,
     ) -> HTMLSlotElement {
         HTMLSlotElement {
-            htmlelement: HTMLElement::new_inherited(local_name, prefix, document),
+            htmlelement: HTMLElement::new_inherited(local_name, prefix, document, is_defined),
             assigned_nodes: Default::default(),
             manually_assigned_nodes: Default::default(),
             is_in_agents_signal_slots: Default::default(),
@@ -184,10 +185,13 @@ impl HTMLSlotElement {
         prefix: Option<Prefix>,
         document: &Document,
         proto: Option<HandleObject>,
+        is_defined: bool,
         can_gc: CanGc,
     ) -> DomRoot<HTMLSlotElement> {
         Node::reflect_node_with_proto(
-            Box::new(HTMLSlotElement::new_inherited(local_name, prefix, document)),
+            Box::new(HTMLSlotElement::new_inherited(
+                local_name, prefix, document, is_defined,
+            )),
             document,
             proto,
             can_gc,

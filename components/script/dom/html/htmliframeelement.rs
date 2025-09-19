@@ -478,9 +478,10 @@ impl HTMLIFrameElement {
         local_name: LocalName,
         prefix: Option<Prefix>,
         document: &Document,
+        is_defined: bool,
     ) -> HTMLIFrameElement {
         HTMLIFrameElement {
-            htmlelement: HTMLElement::new_inherited(local_name, prefix, document),
+            htmlelement: HTMLElement::new_inherited(local_name, prefix, document, is_defined),
             browsing_context_id: Cell::new(None),
             webview_id: Cell::new(None),
             pipeline_id: Cell::new(None),
@@ -499,11 +500,12 @@ impl HTMLIFrameElement {
         prefix: Option<Prefix>,
         document: &Document,
         proto: Option<HandleObject>,
+        is_defined: bool,
         can_gc: CanGc,
     ) -> DomRoot<HTMLIFrameElement> {
         Node::reflect_node_with_proto(
             Box::new(HTMLIFrameElement::new_inherited(
-                local_name, prefix, document,
+                local_name, prefix, document, is_defined,
             )),
             document,
             proto,

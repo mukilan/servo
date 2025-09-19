@@ -115,9 +115,10 @@ impl HTMLLinkElement {
         prefix: Option<Prefix>,
         document: &Document,
         creator: ElementCreator,
+        is_defined: bool,
     ) -> HTMLLinkElement {
         HTMLLinkElement {
-            htmlelement: HTMLElement::new_inherited(local_name, prefix, document),
+            htmlelement: HTMLElement::new_inherited(local_name, prefix, document, is_defined),
             rel_list: Default::default(),
             relations: Cell::new(LinkRelations::empty()),
             parser_inserted: Cell::new(creator.is_parser_created()),
@@ -140,11 +141,12 @@ impl HTMLLinkElement {
         document: &Document,
         proto: Option<HandleObject>,
         creator: ElementCreator,
+        is_defined: bool,
         can_gc: CanGc,
     ) -> DomRoot<HTMLLinkElement> {
         Node::reflect_node_with_proto(
             Box::new(HTMLLinkElement::new_inherited(
-                local_name, prefix, document, creator,
+                local_name, prefix, document, creator, is_defined,
             )),
             document,
             proto,

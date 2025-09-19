@@ -24,9 +24,10 @@ impl HTMLParagraphElement {
         local_name: LocalName,
         prefix: Option<Prefix>,
         document: &Document,
+        is_defined: bool,
     ) -> HTMLParagraphElement {
         HTMLParagraphElement {
-            htmlelement: HTMLElement::new_inherited(local_name, prefix, document),
+            htmlelement: HTMLElement::new_inherited(local_name, prefix, document, is_defined),
         }
     }
 
@@ -36,11 +37,12 @@ impl HTMLParagraphElement {
         prefix: Option<Prefix>,
         document: &Document,
         proto: Option<HandleObject>,
+        is_defined: bool,
         can_gc: CanGc,
     ) -> DomRoot<HTMLParagraphElement> {
         Node::reflect_node_with_proto(
             Box::new(HTMLParagraphElement::new_inherited(
-                local_name, prefix, document,
+                local_name, prefix, document, is_defined,
             )),
             document,
             proto,

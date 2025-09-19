@@ -24,9 +24,10 @@ impl HTMLDivElement {
         local_name: LocalName,
         prefix: Option<Prefix>,
         document: &Document,
+        is_defined: bool,
     ) -> HTMLDivElement {
         HTMLDivElement {
-            htmlelement: HTMLElement::new_inherited(local_name, prefix, document),
+            htmlelement: HTMLElement::new_inherited(local_name, prefix, document, is_defined),
         }
     }
 
@@ -36,10 +37,13 @@ impl HTMLDivElement {
         prefix: Option<Prefix>,
         document: &Document,
         proto: Option<HandleObject>,
+        is_defined: bool,
         can_gc: CanGc,
     ) -> DomRoot<HTMLDivElement> {
         Node::reflect_node_with_proto(
-            Box::new(HTMLDivElement::new_inherited(local_name, prefix, document)),
+            Box::new(HTMLDivElement::new_inherited(
+                local_name, prefix, document, is_defined,
+            )),
             document,
             proto,
             can_gc,

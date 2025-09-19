@@ -37,9 +37,10 @@ impl HTMLOutputElement {
         local_name: LocalName,
         prefix: Option<Prefix>,
         document: &Document,
+        is_defined: bool,
     ) -> HTMLOutputElement {
         HTMLOutputElement {
-            htmlelement: HTMLElement::new_inherited(local_name, prefix, document),
+            htmlelement: HTMLElement::new_inherited(local_name, prefix, document, is_defined),
             form_owner: Default::default(),
             labels_node_list: Default::default(),
             default_value_override: DomRefCell::new(None),
@@ -53,11 +54,12 @@ impl HTMLOutputElement {
         prefix: Option<Prefix>,
         document: &Document,
         proto: Option<HandleObject>,
+        is_defined: bool,
         can_gc: CanGc,
     ) -> DomRoot<HTMLOutputElement> {
         Node::reflect_node_with_proto(
             Box::new(HTMLOutputElement::new_inherited(
-                local_name, prefix, document,
+                local_name, prefix, document, is_defined,
             )),
             document,
             proto,

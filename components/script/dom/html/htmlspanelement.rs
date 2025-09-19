@@ -22,9 +22,10 @@ impl HTMLSpanElement {
         local_name: LocalName,
         prefix: Option<Prefix>,
         document: &Document,
+        is_defined: bool,
     ) -> HTMLSpanElement {
         HTMLSpanElement {
-            htmlelement: HTMLElement::new_inherited(local_name, prefix, document),
+            htmlelement: HTMLElement::new_inherited(local_name, prefix, document, is_defined),
         }
     }
 
@@ -34,10 +35,13 @@ impl HTMLSpanElement {
         prefix: Option<Prefix>,
         document: &Document,
         proto: Option<HandleObject>,
+        is_defined: bool,
         can_gc: CanGc,
     ) -> DomRoot<HTMLSpanElement> {
         Node::reflect_node_with_proto(
-            Box::new(HTMLSpanElement::new_inherited(local_name, prefix, document)),
+            Box::new(HTMLSpanElement::new_inherited(
+                local_name, prefix, document, is_defined,
+            )),
             document,
             proto,
             can_gc,

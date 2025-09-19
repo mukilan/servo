@@ -1335,9 +1335,10 @@ impl HTMLImageElement {
         prefix: Option<Prefix>,
         document: &Document,
         creator: ElementCreator,
+        is_defined: bool,
     ) -> HTMLImageElement {
         HTMLImageElement {
-            htmlelement: HTMLElement::new_inherited(local_name, prefix, document),
+            htmlelement: HTMLElement::new_inherited(local_name, prefix, document, is_defined),
             image_request: Cell::new(ImageRequestPhase::Current),
             current_request: DomRefCell::new(ImageRequest {
                 state: State::Unavailable,
@@ -1376,11 +1377,12 @@ impl HTMLImageElement {
         document: &Document,
         proto: Option<HandleObject>,
         creator: ElementCreator,
+        is_defined: bool,
         can_gc: CanGc,
     ) -> DomRoot<HTMLImageElement> {
         let image_element = Node::reflect_node_with_proto(
             Box::new(HTMLImageElement::new_inherited(
-                local_name, prefix, document, creator,
+                local_name, prefix, document, creator, is_defined,
             )),
             document,
             proto,

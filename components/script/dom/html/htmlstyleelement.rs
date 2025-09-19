@@ -58,9 +58,10 @@ impl HTMLStyleElement {
         prefix: Option<Prefix>,
         document: &Document,
         creator: ElementCreator,
+        is_defined: bool,
     ) -> HTMLStyleElement {
         HTMLStyleElement {
-            htmlelement: HTMLElement::new_inherited(local_name, prefix, document),
+            htmlelement: HTMLElement::new_inherited(local_name, prefix, document, is_defined),
             stylesheet: DomRefCell::new(None),
             stylesheetcontents_cache_key: DomRefCell::new(None),
             cssom_stylesheet: MutNullableDom::new(None),
@@ -78,11 +79,12 @@ impl HTMLStyleElement {
         document: &Document,
         proto: Option<HandleObject>,
         creator: ElementCreator,
+        is_defined: bool,
         can_gc: CanGc,
     ) -> DomRoot<HTMLStyleElement> {
         Node::reflect_node_with_proto(
             Box::new(HTMLStyleElement::new_inherited(
-                local_name, prefix, document, creator,
+                local_name, prefix, document, creator, is_defined,
             )),
             document,
             proto,

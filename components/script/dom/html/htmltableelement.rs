@@ -62,9 +62,10 @@ impl HTMLTableElement {
         local_name: LocalName,
         prefix: Option<Prefix>,
         document: &Document,
+        is_defined: bool,
     ) -> HTMLTableElement {
         HTMLTableElement {
-            htmlelement: HTMLElement::new_inherited(local_name, prefix, document),
+            htmlelement: HTMLElement::new_inherited(local_name, prefix, document, is_defined),
             border: Cell::new(None),
             cellpadding: Cell::new(None),
             cellspacing: Cell::new(None),
@@ -78,17 +79,17 @@ impl HTMLTableElement {
         prefix: Option<Prefix>,
         document: &Document,
         proto: Option<HandleObject>,
+        is_defined: bool,
         can_gc: CanGc,
     ) -> DomRoot<HTMLTableElement> {
         let n = Node::reflect_node_with_proto(
             Box::new(HTMLTableElement::new_inherited(
-                local_name, prefix, document,
+                local_name, prefix, document, is_defined,
             )),
             document,
             proto,
             can_gc,
         );
-
         n.upcast::<Node>().set_weird_parser_insertion_mode();
         n
     }

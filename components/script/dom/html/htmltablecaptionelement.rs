@@ -23,9 +23,10 @@ impl HTMLTableCaptionElement {
         local_name: LocalName,
         prefix: Option<Prefix>,
         document: &Document,
+        is_defined: bool,
     ) -> HTMLTableCaptionElement {
         HTMLTableCaptionElement {
-            htmlelement: HTMLElement::new_inherited(local_name, prefix, document),
+            htmlelement: HTMLElement::new_inherited(local_name, prefix, document, is_defined),
         }
     }
 
@@ -35,17 +36,17 @@ impl HTMLTableCaptionElement {
         prefix: Option<Prefix>,
         document: &Document,
         proto: Option<HandleObject>,
+        is_defined: bool,
         can_gc: CanGc,
     ) -> DomRoot<HTMLTableCaptionElement> {
         let n = Node::reflect_node_with_proto(
             Box::new(HTMLTableCaptionElement::new_inherited(
-                local_name, prefix, document,
+                local_name, prefix, document, is_defined,
             )),
             document,
             proto,
             can_gc,
         );
-
         n.upcast::<Node>().set_weird_parser_insertion_mode();
         n
     }

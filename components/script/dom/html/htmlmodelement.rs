@@ -22,9 +22,10 @@ impl HTMLModElement {
         local_name: LocalName,
         prefix: Option<Prefix>,
         document: &Document,
+        is_defined: bool,
     ) -> HTMLModElement {
         HTMLModElement {
-            htmlelement: HTMLElement::new_inherited(local_name, prefix, document),
+            htmlelement: HTMLElement::new_inherited(local_name, prefix, document, is_defined),
         }
     }
 
@@ -34,10 +35,13 @@ impl HTMLModElement {
         prefix: Option<Prefix>,
         document: &Document,
         proto: Option<HandleObject>,
+        is_defined: bool,
         can_gc: CanGc,
     ) -> DomRoot<HTMLModElement> {
         Node::reflect_node_with_proto(
-            Box::new(HTMLModElement::new_inherited(local_name, prefix, document)),
+            Box::new(HTMLModElement::new_inherited(
+                local_name, prefix, document, is_defined,
+            )),
             document,
             proto,
             can_gc,

@@ -23,9 +23,10 @@ impl HTMLMenuElement {
         local_name: LocalName,
         prefix: Option<Prefix>,
         document: &Document,
+        is_defined: bool,
     ) -> HTMLMenuElement {
         HTMLMenuElement {
-            htmlelement: HTMLElement::new_inherited(local_name, prefix, document),
+            htmlelement: HTMLElement::new_inherited(local_name, prefix, document, is_defined),
         }
     }
 
@@ -35,10 +36,13 @@ impl HTMLMenuElement {
         prefix: Option<Prefix>,
         document: &Document,
         proto: Option<HandleObject>,
+        is_defined: bool,
         can_gc: CanGc,
     ) -> DomRoot<HTMLMenuElement> {
         Node::reflect_node_with_proto(
-            Box::new(HTMLMenuElement::new_inherited(local_name, prefix, document)),
+            Box::new(HTMLMenuElement::new_inherited(
+                local_name, prefix, document, is_defined,
+            )),
             document,
             proto,
             can_gc,

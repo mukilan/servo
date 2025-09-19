@@ -42,9 +42,10 @@ impl HTMLTrackElement {
         prefix: Option<Prefix>,
         document: &Document,
         track: &TextTrack,
+        is_defined: bool,
     ) -> HTMLTrackElement {
         HTMLTrackElement {
-            htmlelement: HTMLElement::new_inherited(local_name, prefix, document),
+            htmlelement: HTMLElement::new_inherited(local_name, prefix, document, is_defined),
             ready_state: ReadyState::None,
             track: Dom::from_ref(track),
         }
@@ -55,6 +56,7 @@ impl HTMLTrackElement {
         prefix: Option<Prefix>,
         document: &Document,
         proto: Option<HandleObject>,
+        is_defined: bool,
         can_gc: CanGc,
     ) -> DomRoot<HTMLTrackElement> {
         let track = TextTrack::new(
@@ -69,7 +71,7 @@ impl HTMLTrackElement {
         );
         Node::reflect_node_with_proto(
             Box::new(HTMLTrackElement::new_inherited(
-                local_name, prefix, document, &track,
+                local_name, prefix, document, is_defined,
             )),
             document,
             proto,

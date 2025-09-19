@@ -34,9 +34,10 @@ impl HTMLHeadingElement {
         prefix: Option<Prefix>,
         document: &Document,
         level: HeadingLevel,
+        is_defined: bool,
     ) -> HTMLHeadingElement {
         HTMLHeadingElement {
-            htmlelement: HTMLElement::new_inherited(local_name, prefix, document),
+            htmlelement: HTMLElement::new_inherited(local_name, prefix, document, is_defined),
             level,
         }
     }
@@ -48,11 +49,12 @@ impl HTMLHeadingElement {
         document: &Document,
         proto: Option<HandleObject>,
         level: HeadingLevel,
+        is_defined: bool,
         can_gc: CanGc,
     ) -> DomRoot<HTMLHeadingElement> {
         Node::reflect_node_with_proto(
             Box::new(HTMLHeadingElement::new_inherited(
-                local_name, prefix, document, level,
+                local_name, prefix, document, level, is_defined,
             )),
             document,
             proto,
