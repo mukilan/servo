@@ -66,13 +66,9 @@ pub(crate) struct HTMLVideoElement {
 }
 
 impl HTMLVideoElement {
-    fn new_inherited(
-        local_name: LocalName,
-        prefix: Option<Prefix>,
-        document: &Document,
-    ) -> HTMLVideoElement {
-        HTMLVideoElement {
-            htmlmediaelement: HTMLMediaElement::new_inherited(local_name, prefix, document),
+    fn new_inherited(local_name: LocalName, prefix: Option<Prefix>, document: &Document, is_defined: bool,) -> HTMLVideoElement {
+                HTMLVideoElement {
+            htmlmediaelement: HTMLMediaElement::new_inherited(local_name, prefix, document, is_defined,),
             video_width: Cell::new(None),
             video_height: Cell::new(None),
             generation_id: Cell::new(0),
@@ -80,25 +76,19 @@ impl HTMLVideoElement {
             last_frame: Default::default(),
             sent_resize: Cell::new(None),
         }
-    }
+            }
+            
 
     #[cfg_attr(crown, allow(crown::unrooted_must_root))]
-    pub(crate) fn new(
-        local_name: LocalName,
-        prefix: Option<Prefix>,
-        document: &Document,
-        proto: Option<HandleObject>,
-        can_gc: CanGc,
-    ) -> DomRoot<HTMLVideoElement> {
-        Node::reflect_node_with_proto(
-            Box::new(HTMLVideoElement::new_inherited(
-                local_name, prefix, document,
-            )),
+    pub(crate) fn new(local_name: LocalName, prefix: Option<Prefix>, document: &Document, proto: Option<HandleObject>, is_defined: bool, can_gc: CanGc,) -> DomRoot<HTMLVideoElement> {
+                Node::reflect_node_with_proto(
+            Box::new(HTMLVideoElement::new_inherited(local_name, prefix, document, is_defined,)),
             document,
             proto,
             can_gc,
         )
-    }
+            }
+            
 
     pub(crate) fn get_video_width(&self) -> Option<u32> {
         self.video_width.get()
