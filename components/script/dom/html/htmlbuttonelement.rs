@@ -54,10 +54,13 @@ impl HTMLButtonElement {
         local_name: LocalName,
         prefix: Option<Prefix>,
         document: &Document,
+        is_defined: bool,
     ) -> HTMLButtonElement {
+        let mut state = ElementState::ENABLED;
+        state.set(ElementState::DEFINED, is_defined);
         HTMLButtonElement {
             htmlelement: HTMLElement::new_inherited_with_state(
-                ElementState::ENABLED,
+                state,
                 local_name,
                 prefix,
                 document,
@@ -75,11 +78,12 @@ impl HTMLButtonElement {
         prefix: Option<Prefix>,
         document: &Document,
         proto: Option<HandleObject>,
+        is_defined: bool,
         can_gc: CanGc,
     ) -> DomRoot<HTMLButtonElement> {
         Node::reflect_node_with_proto(
             Box::new(HTMLButtonElement::new_inherited(
-                local_name, prefix, document,
+                local_name, prefix, document, is_defined
             )),
             document,
             proto,

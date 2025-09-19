@@ -146,7 +146,7 @@ fn create_html_element(
             // local name set to localName, custom element state set to "undefined",
             // custom element definition set to null, is value set to is,
             // and node document set to document.
-            let element = create_native_html_element(name, prefix, document, creator, proto);
+            let element = create_native_html_element(name, prefix, document, creator, proto, false);
             element.set_is(definition.name.clone());
             element.set_custom_element_state(CustomElementState::Undefined);
             match mode {
@@ -195,7 +195,7 @@ fn create_html_element(
                             // custom element definition set to null, is value set to null,
                             // and node document set to document.
                             let element = DomRoot::upcast::<Element>(HTMLUnknownElement::new(
-                                local_name, prefix, document, proto, can_gc,
+                                local_name, prefix, document, proto, false, can_gc,
                             ));
                             element.set_custom_element_state(CustomElementState::Failed);
                             element
@@ -214,6 +214,7 @@ fn create_html_element(
                         prefix.clone(),
                         document,
                         proto,
+                        false,
                         can_gc,
                     ));
                     result.set_custom_element_state(CustomElementState::Undefined);
@@ -231,7 +232,8 @@ fn create_html_element(
     // namespace set to namespace, namespace prefix set to prefix, local name set to localName,
     // custom element state set to "uncustomized", custom element definition set to null,
     // is value set to is, and node document set to document.
-    let result = create_native_html_element(name.clone(), prefix, document, creator, proto);
+    let is_builtin = is.is_none() && !is_valid_custom_element_name(&name.local);
+    let result = create_native_html_element(name.clone(), prefix, document, creator, proto, is_builtin);
     // Step 5.3. If namespace is the HTML namespace, and either localName is a valid custom element name or
     // is is non-null, then set result’s custom element state to "undefined".
     match is {
@@ -258,16 +260,17 @@ pub(crate) fn create_native_html_element(
     document: &Document,
     creator: ElementCreator,
     proto: Option<HandleObject>,
+    is_defined: bool,
 ) -> DomRoot<Element> {
     assert_eq!(name.ns, ns!(html));
 
     macro_rules! make(
         ($ctor:ident) => ({
-            let obj = $ctor::new(name.local, prefix, document, proto, CanGc::note());
+            let obj = $ctor::new(name.local, prefix, document, proto, is_defined, CanGc::note());
             DomRoot::upcast(obj)
         });
         ($ctor:ident, $($arg:expr),+) => ({
-            let obj = $ctor::new(name.local, prefix, document, proto, $($arg),+, CanGc::note());
+            let obj = $ctor::new(name.local, prefix, document, proto, $($arg),+, is_defined, CanGc::note());
             DomRoot::upcast(obj)
         })
     );

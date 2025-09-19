@@ -24,9 +24,10 @@ impl HTMLHtmlElement {
         localName: LocalName,
         prefix: Option<Prefix>,
         document: &Document,
+        is_defined: bool,
     ) -> HTMLHtmlElement {
         HTMLHtmlElement {
-            htmlelement: HTMLElement::new_inherited(localName, prefix, document),
+            htmlelement: HTMLElement::new_inherited(localName, prefix, document, is_defined),
         }
     }
 
@@ -36,10 +37,11 @@ impl HTMLHtmlElement {
         prefix: Option<Prefix>,
         document: &Document,
         proto: Option<HandleObject>,
+        is_defined: bool,
         can_gc: CanGc,
     ) -> DomRoot<HTMLHtmlElement> {
         let n = Node::reflect_node_with_proto(
-            Box::new(HTMLHtmlElement::new_inherited(localName, prefix, document)),
+            Box::new(HTMLHtmlElement::new_inherited(localName, prefix, document, is_defined)),
             document,
             proto,
             can_gc,

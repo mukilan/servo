@@ -465,15 +465,18 @@ impl HTMLInputElement {
         local_name: LocalName,
         prefix: Option<Prefix>,
         document: &Document,
+        is_defined: bool,
     ) -> HTMLInputElement {
         let embedder_sender = document
             .window()
             .as_global_scope()
             .script_to_embedder_chan()
             .clone();
+        let mut state = ElementState::ENABLED | ElementState::READWRITE;
+        state.set(ElementState::DEFINED, is_defined);
         HTMLInputElement {
             htmlelement: HTMLElement::new_inherited_with_state(
-                ElementState::ENABLED | ElementState::READWRITE,
+                state,
                 local_name,
                 prefix,
                 document,
@@ -511,11 +514,12 @@ impl HTMLInputElement {
         prefix: Option<Prefix>,
         document: &Document,
         proto: Option<HandleObject>,
+        is_defined: bool,
         can_gc: CanGc,
     ) -> DomRoot<HTMLInputElement> {
         Node::reflect_node_with_proto(
             Box::new(HTMLInputElement::new_inherited(
-                local_name, prefix, document,
+                local_name, prefix, document, is_defined
             )),
             document,
             proto,

@@ -469,9 +469,10 @@ impl HTMLMediaElement {
         tag_name: LocalName,
         prefix: Option<Prefix>,
         document: &Document,
+        is_defined: bool,
     ) -> Self {
         Self {
-            htmlelement: HTMLElement::new_inherited(tag_name, prefix, document),
+            htmlelement: HTMLElement::new_inherited(tag_name, prefix, document, is_defined),
             network_state: Cell::new(NetworkState::Empty),
             ready_state: Cell::new(ReadyState::HaveNothing),
             src_object: Default::default(),

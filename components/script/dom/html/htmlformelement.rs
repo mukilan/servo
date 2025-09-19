@@ -117,10 +117,13 @@ impl HTMLFormElement {
         local_name: LocalName,
         prefix: Option<Prefix>,
         document: &Document,
+        is_defined: bool,
     ) -> HTMLFormElement {
+        let mut state = ElementState::VALID;
+        state.set(ElementState::DEFINED, is_defined);
         HTMLFormElement {
             htmlelement: HTMLElement::new_inherited_with_state(
-                ElementState::VALID,
+                state,
                 local_name,
                 prefix,
                 document,
@@ -144,10 +147,11 @@ impl HTMLFormElement {
         prefix: Option<Prefix>,
         document: &Document,
         proto: Option<HandleObject>,
+        is_defined: bool,
         can_gc: CanGc,
     ) -> DomRoot<HTMLFormElement> {
         Node::reflect_node_with_proto(
-            Box::new(HTMLFormElement::new_inherited(local_name, prefix, document)),
+            Box::new(HTMLFormElement::new_inherited(local_name, prefix, document, is_defined)),
             document,
             proto,
             can_gc,

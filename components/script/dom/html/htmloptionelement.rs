@@ -53,10 +53,13 @@ impl HTMLOptionElement {
         local_name: LocalName,
         prefix: Option<Prefix>,
         document: &Document,
+        is_defined: bool,
     ) -> HTMLOptionElement {
+        let mut state = ElementState::ENABLED;
+        state.set(ElementState::DEFINED, is_defined);
         HTMLOptionElement {
             htmlelement: HTMLElement::new_inherited_with_state(
-                ElementState::ENABLED,
+                state,
                 local_name,
                 prefix,
                 document,
@@ -72,11 +75,12 @@ impl HTMLOptionElement {
         prefix: Option<Prefix>,
         document: &Document,
         proto: Option<HandleObject>,
+        is_defined: bool,
         can_gc: CanGc,
     ) -> DomRoot<HTMLOptionElement> {
         Node::reflect_node_with_proto(
             Box::new(HTMLOptionElement::new_inherited(
-                local_name, prefix, document,
+                local_name, prefix, document, is_defined
             )),
             document,
             proto,

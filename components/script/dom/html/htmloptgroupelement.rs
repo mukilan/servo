@@ -35,10 +35,13 @@ impl HTMLOptGroupElement {
         local_name: LocalName,
         prefix: Option<Prefix>,
         document: &Document,
+        is_defined: bool,
     ) -> HTMLOptGroupElement {
+        let mut state = ElementState::ENABLED;
+        state.set(ElementState::DEFINED, is_defined);
         HTMLOptGroupElement {
             htmlelement: HTMLElement::new_inherited_with_state(
-                ElementState::ENABLED,
+                state,
                 local_name,
                 prefix,
                 document,
@@ -52,11 +55,12 @@ impl HTMLOptGroupElement {
         prefix: Option<Prefix>,
         document: &Document,
         proto: Option<HandleObject>,
+        is_defined: bool,
         can_gc: CanGc,
     ) -> DomRoot<HTMLOptGroupElement> {
         Node::reflect_node_with_proto(
             Box::new(HTMLOptGroupElement::new_inherited(
-                local_name, prefix, document,
+                local_name, prefix, document, is_defined
             )),
             document,
             proto,

@@ -69,8 +69,14 @@ impl HTMLElement {
         tag_name: LocalName,
         prefix: Option<Prefix>,
         document: &Document,
+        is_defined: bool,
     ) -> HTMLElement {
-        HTMLElement::new_inherited_with_state(ElementState::empty(), tag_name, prefix, document)
+        let state = if is_defined {
+            ElementState::DEFINED
+        } else {
+            ElementState::empty()
+        };
+        HTMLElement::new_inherited_with_state(state, tag_name, prefix, document)
     }
 
     pub(crate) fn new_inherited_with_state(
@@ -98,10 +104,11 @@ impl HTMLElement {
         prefix: Option<Prefix>,
         document: &Document,
         proto: Option<HandleObject>,
+        is_defined: bool,
         can_gc: CanGc,
     ) -> DomRoot<HTMLElement> {
         Node::reflect_node_with_proto(
-            Box::new(HTMLElement::new_inherited(local_name, prefix, document)),
+            Box::new(HTMLElement::new_inherited(local_name, prefix, document, is_defined)),
             document,
             proto,
             can_gc,

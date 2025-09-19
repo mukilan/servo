@@ -71,7 +71,7 @@ impl HTMLTrackElement {
         );
         Node::reflect_node_with_proto(
             Box::new(HTMLTrackElement::new_inherited(
-                local_name, prefix, document, is_defined,
+                local_name, prefix, document, &track, is_defined,
             )),
             document,
             proto,

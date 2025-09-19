@@ -276,9 +276,10 @@ impl HTMLAreaElement {
         local_name: LocalName,
         prefix: Option<Prefix>,
         document: &Document,
+        is_defined: bool,
     ) -> HTMLAreaElement {
         HTMLAreaElement {
-            htmlelement: HTMLElement::new_inherited(local_name, prefix, document),
+            htmlelement: HTMLElement::new_inherited(local_name, prefix, document, is_defined),
             rel_list: Default::default(),
             relations: Cell::new(LinkRelations::empty()),
             url: DomRefCell::new(None),
@@ -291,10 +292,11 @@ impl HTMLAreaElement {
         prefix: Option<Prefix>,
         document: &Document,
         proto: Option<HandleObject>,
+        is_defined: bool,
         can_gc: CanGc,
     ) -> DomRoot<HTMLAreaElement> {
         Node::reflect_node_with_proto(
-            Box::new(HTMLAreaElement::new_inherited(local_name, prefix, document)),
+            Box::new(HTMLAreaElement::new_inherited(local_name, prefix, document, is_defined)),
             document,
             proto,
             can_gc,

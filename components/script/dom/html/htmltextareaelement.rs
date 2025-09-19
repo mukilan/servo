@@ -140,15 +140,18 @@ impl HTMLTextAreaElement {
         local_name: LocalName,
         prefix: Option<Prefix>,
         document: &Document,
+        is_defined: bool,
     ) -> HTMLTextAreaElement {
         let embedder_sender = document
             .window()
             .as_global_scope()
             .script_to_embedder_chan()
             .clone();
+        let mut state = ElementState::ENABLED | ElementState::READWRITE;
+        state.set(ElementState::DEFINED, is_defined);
         HTMLTextAreaElement {
             htmlelement: HTMLElement::new_inherited_with_state(
-                ElementState::ENABLED | ElementState::READWRITE,
+                state,
                 local_name,
                 prefix,
                 document,
@@ -178,11 +181,12 @@ impl HTMLTextAreaElement {
         prefix: Option<Prefix>,
         document: &Document,
         proto: Option<HandleObject>,
+        is_defined: bool,
         can_gc: CanGc,
     ) -> DomRoot<HTMLTextAreaElement> {
         Node::reflect_node_with_proto(
             Box::new(HTMLTextAreaElement::new_inherited(
-                local_name, prefix, document,
+                local_name, prefix, document, is_defined,
             )),
             document,
             proto,

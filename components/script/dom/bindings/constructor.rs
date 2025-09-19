@@ -174,7 +174,7 @@ fn html_constructor(
             // Any prototype used to create these elements will be overwritten before returning
             // from this function, so we don't bother overwriting the defaults here.
             let element = if definition.is_autonomous() {
-                DomRoot::upcast(HTMLElement::new(name.local, None, &document, None, can_gc))
+                DomRoot::upcast(HTMLElement::new(name.local, None, &document, None, false, can_gc))
             } else {
                 create_native_html_element(
                     name,
@@ -182,6 +182,7 @@ fn html_constructor(
                     &document,
                     ElementCreator::ScriptCreated,
                     None,
+                    false
                 )
             };
 
