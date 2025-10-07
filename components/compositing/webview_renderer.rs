@@ -25,7 +25,7 @@ use rustc_hash::FxHashMap;
 use servo_geometry::DeviceIndependentPixel;
 use style_traits::{CSSPixel, PinchZoomFactor};
 use webrender_api::units::{DeviceIntPoint, DevicePixel, DevicePoint, DeviceRect, LayoutVector2D};
-use webrender_api::{ExternalScrollId, HitTestFlags, ScrollLocation};
+use webrender_api::{DocumentId, ExternalScrollId, HitTestFlags, ScrollLocation};
 
 use crate::compositor::{PipelineDetails, ServoRenderer};
 use crate::touch::{TouchHandler, TouchMoveAction, TouchMoveAllowed, TouchSequenceState};
@@ -70,6 +70,8 @@ pub(crate) enum PinchZoomResult {
 pub(crate) struct WebViewRenderer {
     /// The [`WebViewId`] of the `WebView` associated with this [`WebViewDetails`].
     pub id: WebViewId,
+    /// The WebRender [`DocumentId`] that this `WebView` is rendering into.
+    pub document_id: DocumentId,
     /// The renderer's view of the embedding layer `WebView` as a trait implementation,
     /// so that the renderer doesn't need to depend on the embedding layer. This avoids
     /// a dependency cycle.
@@ -106,11 +108,13 @@ impl WebViewRenderer {
         global: Rc<RefCell<ServoRenderer>>,
         renderer_webview: Box<dyn WebViewTrait>,
         viewport_details: ViewportDetails,
+        document_id: DocumentId,
     ) -> Self {
         let hidpi_scale_factor = viewport_details.hidpi_scale_factor;
         let size = viewport_details.size * viewport_details.hidpi_scale_factor;
         Self {
             id: renderer_webview.id(),
+            document_id,
             webview: renderer_webview,
             root_pipeline_id: None,
             rect: DeviceRect::from_origin_and_size(DevicePoint::origin(), size),
@@ -287,7 +291,7 @@ impl WebViewRenderer {
                 let hit_test_result = self
                     .global
                     .borrow()
-                    .hit_test_at_point(point)
+                    .hit_test_at_point(self.document_id, point)
                     .into_iter()
                     .nth(0);
                 if hit_test_result.is_none() {
@@ -751,7 +755,7 @@ impl WebViewRenderer {
         let hit_test_results = self
             .global
             .borrow()
-            .hit_test_at_point_with_flags(cursor, HitTestFlags::FIND_ALL);
+            .hit_test_at_point_with_flags(self.document_id, cursor, HitTestFlags::FIND_ALL);
 
         // Iterate through all hit test results, processing only the first node of each pipeline.
         // This is needed to propagate the scroll events from a pipeline representing an iframe to

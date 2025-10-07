@@ -580,7 +580,7 @@ impl WebView {
 
     /// Paint the contents of this [`WebView`] into its `RenderingContext`.
     pub fn paint(&self) {
-        self.inner().compositor.borrow_mut().render();
+        self.inner().compositor.borrow_mut().render(self.id());
     }
 
     /// Evaluate the specified string of JavaScript code. Once execution is complete or an error
