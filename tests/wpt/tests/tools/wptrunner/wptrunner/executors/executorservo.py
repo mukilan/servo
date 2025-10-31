@@ -13,12 +13,11 @@ from mozprocess import ProcessHandler
 
 from tools.serve.serve import make_hosts_file
 
-from .base import (RefTestImplementation,
+from .base import (TestExecutor, RefTestExecutor, RefTestImplementation,
                    crashtest_result_converter,
                    testharness_result_converter,
                    reftest_result_converter,
                    TimedRunner)
-from .process import ProcessTestExecutor
 from .protocol import ConnectionlessProtocol
 from ..browsers.base import browser_command
 
@@ -27,35 +26,38 @@ pytestrunner = None
 webdriver = None
 
 
-class ServoExecutor(ProcessTestExecutor):
-    def __init__(self, logger, browser, server_config, headless: bool,
-                timeout_multiplier, debug_info,
-                 pause_after_test, reftest_screenshot="unexpected"):
-        ProcessTestExecutor.__init__(self, logger, browser, server_config,
-                                     timeout_multiplier=timeout_multiplier,
-                                     debug_info=debug_info,
-                                     reftest_screenshot=reftest_screenshot)
-        self.pause_after_test = pause_after_test
+class ServoExecutorMixin:
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.binary = self.browser.binary
+        self.interactive = (False if self.debug_info is None
+                            else self.debug_info.interactive)
+        self.pause_after_test = kwargs.get('pause_after_test', False)
         self.environment = {}
-        self.protocol = ConnectionlessProtocol(self, browser)
-        self.headless = headless
+        self.protocol = ConnectionlessProtocol(self, self.browser)
+        self.headless = kwargs.get('headless', False)
 
         self.wpt_prefs_path = self.find_wpt_prefs()
 
         hosts_fd, self.hosts_path = tempfile.mkstemp()
         with os.fdopen(hosts_fd, "w") as f:
-            f.write(make_hosts_file(server_config, "127.0.0.1"))
+            f.write(make_hosts_file(self.server_config, "127.0.0.1"))
 
         self.env_for_tests = os.environ.copy()
         self.env_for_tests["HOST_FILE"] = self.hosts_path
         self.env_for_tests["RUST_BACKTRACE"] = "1"
+
+    def setup(self, runner, protocol=None):
+        self.runner = runner
+        self.runner.send_message("init_succeeded")
+        return True
 
     def teardown(self):
         try:
             os.unlink(self.hosts_path)
         except OSError:
             pass
-        ProcessTestExecutor.teardown(self)
+        super().teardown()
 
     def on_environment_change(self, new_environment):
         self.environment = new_environment
@@ -66,7 +68,8 @@ class ServoExecutor(ProcessTestExecutor):
         if self.interactive:
             print(line)
         else:
-            self.logger.process_output(self.proc.pid, line, " ".join(self.command), self.test.url)
+            self.logger.process_output(
+                self.proc.pid, line, " ".join(self.command), self.test.url)
 
     def find_wpt_prefs(self):
         default_path = os.path.join("resources", "wpt-prefs.json")
@@ -103,20 +106,20 @@ class ServoExecutor(ProcessTestExecutor):
         if extra_args:
             args += extra_args
         args += self.browser.binary_args
-        debug_args, command = browser_command(self.binary, args, self.debug_info)
+        debug_args, command = browser_command(
+            self.binary, args, self.debug_info)
         return debug_args + command
 
 
-class ServoTestharnessExecutor(ServoExecutor):
+class ServoTestharnessExecutor(ServoExecutorMixin, TestExecutor):
     convert_result = testharness_result_converter
 
     def __init__(self, logger, browser, server_config, headless,
                  timeout_multiplier=1, debug_info=None,
                  pause_after_test=False, **kwargs):
-        ServoExecutor.__init__(self, logger, browser, server_config, headless,
-                               timeout_multiplier=timeout_multiplier,
-                               debug_info=debug_info,
-                               pause_after_test=pause_after_test)
+        super().__init__(logger, browser, server_config, headless=headless,
+                         timeout_multiplier=timeout_multiplier, debug_info=debug_info,
+                         pause_after_test=pause_after_test)
         self.result_data = None
         self.result_flag = None
 
@@ -179,10 +182,11 @@ class ServoTestharnessExecutor(ServoExecutor):
             try:
                 self.result_data = json.loads(decoded_line[len(prefix):])
             except json.JSONDecodeError as error:
-                self.logger.error(f"Could not process test output JSON: {error}")
+                self.logger.error(
+                    f"Could not process test output JSON: {error}")
             self.result_flag.set()
         else:
-            ServoExecutor.on_output(self, line)
+            super().on_output(line)
 
     def on_finish(self):
         self.result_flag.set()
@@ -204,21 +208,20 @@ class TempFilename:
             pass
 
 
-class ServoRefTestExecutor(ServoExecutor):
+class ServoRefTestExecutor(ServoExecutorMixin, RefTestExecutor):
     convert_result = reftest_result_converter
 
     def __init__(self, logger, browser, server_config, binary=None, timeout_multiplier=1,
                  screenshot_cache=None, debug_info=None, pause_after_test=False,
                  reftest_screenshot="unexpected", **kwargs):
-        ServoExecutor.__init__(self,
-                               logger,
-                               browser,
-                               server_config,
-                               headless=True,
-                               timeout_multiplier=timeout_multiplier,
-                               debug_info=debug_info,
-                               reftest_screenshot=reftest_screenshot,
-                               pause_after_test=pause_after_test)
+        super().__init__(logger,
+                         browser,
+                         server_config,
+                         headless=True,
+                         timeout_multiplier=timeout_multiplier,
+                         debug_info=debug_info,
+                         reftest_screenshot=reftest_screenshot,
+                         pause_after_test=pause_after_test)
 
         self.screenshot_cache = screenshot_cache
         self.reftest_screenshot = reftest_screenshot
@@ -230,7 +233,7 @@ class ServoRefTestExecutor(ServoExecutor):
 
     def teardown(self):
         os.rmdir(self.tempdir)
-        ServoExecutor.teardown(self)
+        super().teardown()
 
     def screenshot(self, test, viewport_size, dpi, page_ranges):
         with TempFilename(self.tempdir) as output_path:
@@ -256,7 +259,8 @@ class ServoRefTestExecutor(ServoExecutor):
                     self.proc.kill()
                     raise
             else:
-                self.proc = subprocess.Popen(self.command, env=self.env_for_tests)
+                self.proc = subprocess.Popen(
+                    self.command, env=self.env_for_tests)
                 try:
                     rv = self.proc.wait()
                 except KeyboardInterrupt:
@@ -287,7 +291,8 @@ class ServoRefTestExecutor(ServoExecutor):
 class ServoTimedRunner(TimedRunner):
     def run_func(self):
         try:
-            self.result = (True, self.func(self.protocol, self.url, self.timeout))
+            self.result = (True, self.func(
+                self.protocol, self.url, self.timeout))
         except Exception as e:
             message = getattr(e, "message", "")
             if message:
@@ -301,20 +306,19 @@ class ServoTimedRunner(TimedRunner):
         pass
 
 
-class ServoCrashtestExecutor(ServoExecutor):
+class ServoCrashtestExecutor(ServoExecutorMixin, TestExecutor):
     convert_result = crashtest_result_converter
 
     def __init__(self, logger, browser, server_config, headless,
                  binary=None, timeout_multiplier=1, screenshot_cache=None,
                  debug_info=None, pause_after_test=False):
-        ServoExecutor.__init__(self,
-                               logger,
-                               browser,
-                               server_config,
-                               headless,
-                               timeout_multiplier=timeout_multiplier,
-                               debug_info=debug_info,
-                               pause_after_test=pause_after_test)
+        super().__init__(logger,
+                         browser,
+                         server_config,
+                         headless,
+                         timeout_multiplier=timeout_multiplier,
+                         debug_info=debug_info,
+                         pause_after_test=pause_after_test)
 
         self.pause_after_test = pause_after_test
         self.protocol = ConnectionlessProtocol(self, browser)
