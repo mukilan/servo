@@ -717,12 +717,6 @@ impl WebGLThread {
         // We need to make the context current so its resources can be disposed of.
         self.make_current_if_needed(context_id);
 
-        // Release GL context.
-        let mut data = match self.contexts.remove(&context_id) {
-            Some(data) => data,
-            None => return,
-        };
-
         #[cfg(feature = "webxr")]
         {
             // Destroy WebXR layers associated with this context
@@ -731,6 +725,12 @@ impl WebGLThread {
                 webxr_bridge.destroy_all_layers(self, webxr_context_id);
             }
         }
+
+        // Release GL context.
+        let mut data = match self.contexts.remove(&context_id) {
+            Some(data) => data,
+            None => return,
+        };
 
         // Destroy the swap chains
         self.webrender_swap_chains
