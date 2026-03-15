@@ -16,10 +16,11 @@ use js::jsapi::{
     GetRealmGlobalOrNull, GetWellKnownSymbol, HandleObject as RawHandleObject,
     IsSharableCompartment, IsSystemCompartment, JS_AtomizeAndPinString, JS_GetFunctionObject,
     JS_IterateCompartments, JS_NewFunction, JS_NewGlobalObject, JS_NewObject, JS_NewStringCopyN,
-    JS_SetReservedSlot, JS_SetTrustedPrincipals, JSAutoRealm, JSClass, JSClassOps, JSContext,
-    JSFUN_CONSTRUCTOR, JSFunctionSpec, JSObject, JSPROP_ENUMERATE, JSPROP_PERMANENT,
-    JSPROP_READONLY, JSPROP_RESOLVING, JSPropertySpec, JSString, JSTracer, ObjectOps,
-    OnNewGlobalHookOption, SymbolCode, TrueHandleValue, Value, jsid,
+    JS_SetReservedSlot, JS_SetTrustedPrincipals, JSAutoRealm, JSCLASS_RESERVED_SLOTS_MASK,
+    JSCLASS_RESERVED_SLOTS_SHIFT, JSClass, JSClassOps, JSContext, JSFUN_CONSTRUCTOR,
+    JSFunctionSpec, JSObject, JSPROP_ENUMERATE, JSPROP_PERMANENT, JSPROP_READONLY,
+    JSPROP_RESOLVING, JSPropertySpec, JSString, JSTracer, ObjectOps, OnNewGlobalHookOption,
+    SymbolCode, TrueHandleValue, Value, jsid,
 };
 use js::jsval::{JSVal, NullValue, PrivateValue};
 use js::realm::AutoRealm;
@@ -32,6 +33,7 @@ use js::rust::{
     HandleObject, HandleValue, MutableHandleObject, RealmOptions, define_methods,
     define_properties, get_object_class, is_dom_class, maybe_wrap_object,
 };
+use js::{JSCLASS_GLOBAL_SLOT_COUNT, JSCLASS_IS_DOMJSCLASS, JSCLASS_IS_GLOBAL};
 use servo_url::MutableOrigin;
 
 use crate::DomTypes;
@@ -190,6 +192,76 @@ pub(crate) unsafe fn create_global_object<D: DomTypes>(
 
     let _ac = JSAutoRealm::new(*cx, rval.get());
     JS_FireOnNewGlobalObject(*cx, rval.handle());
+}
+
+static SANDBOX_CLASS_OPS: JSClassOps = JSClassOps {
+    addProperty: None,
+    delProperty: None,
+    enumerate: None,
+    newEnumerate: Some(js::jsapi::JS_NewEnumerateStandardClasses),
+    resolve: Some(js::jsapi::JS_ResolveStandardClass),
+    mayResolve: Some(js::jsapi::JS_MayResolveStandardClass),
+    finalize: None,
+    call: None,
+    construct: None,
+    trace: Some(js::jsapi::JS_GlobalObjectTraceHook),
+};
+
+static SANDBOX_CLASS: JSClass = JSClass {
+    name: c"Sandbox".as_ptr(),
+    flags: JSCLASS_IS_DOMJSCLASS |
+        JSCLASS_IS_GLOBAL |
+        JSCLASS_DOM_GLOBAL |
+        (((JSCLASS_GLOBAL_SLOT_COUNT + 1) & JSCLASS_RESERVED_SLOTS_MASK) <<
+            JSCLASS_RESERVED_SLOTS_SHIFT),
+    cOps: &SANDBOX_CLASS_OPS,
+    spec: ptr::null(),
+    ext: ptr::null(),
+    oOps: ptr::null(),
+};
+
+/// Create a new Sandbox global object.
+pub(crate) unsafe fn create_sandbox_global_object<D: DomTypes>(
+    cx: SafeJSContext,
+    trace: TraceHook,
+    mut rval: MutableHandleObject,
+    origin: &MutableOrigin,
+    use_system_compartment: bool,
+) {
+    assert!(rval.is_null());
+
+    let mut options = RealmOptions::default();
+    js::jsapi::glue::SetRealmCreationOptionNewCompartmentInExistingZone(options, rval);
+    // options
+    //     .creationOptions_
+    //     .options
+    //     .creationOptions_
+    //     .sharedMemoryAndAtomics_ = false;
+    // “System or addon” principals control JIT policy (IsBaselineJitEnabled, IsIonEnabled) and WASM policy
+    // (IsSimdPrivilegedContext, HasSupport). This is unrelated to the concept of “system” compartments, though WASM
+    // HasSupport describes checking this flag as “check trusted principals”, which seems to be a mistake.
+    // Servo currently creates all principals as non-system-or-addon principals.
+    // let principal = ServoJSPrincipals::new::<D>(origin);
+    // if use_system_compartment {
+    //     // “System” compartments are those that have all “system” realms, which in turn are those that were
+    //     // created with the runtime’s global “trusted” principals. This influences the IsSystemCompartment() check
+    //     // in select_compartment() below [1], preventing compartment reuse in either direction between this global
+    //     // and any globals created with `use_system_compartment` set to false.
+    //     // [1] IsSystemCompartment() → Realm::isSystem() → Realm::isSystem_ → principals == trustedPrincipals()
+    //     JS_SetTrustedPrincipals(*cx, principal.as_raw());
+    // }
+    //
+    // rval.set(JS_NewGlobalObject(
+    //     *cx,
+    //     &SANDBOX_CLASS,
+    //     principal.as_raw(),
+    //     OnNewGlobalHookOption::DontFireOnNewGlobalHook,
+    //     &*options,
+    // ));
+    // assert!(!rval.is_null());
+    //
+    // let _ac = JSAutoRealm::new(*cx, rval.get());
+    // JS_FireOnNewGlobalObject(*cx, rval.handle());
 }
 
 /// Choose the compartment to create a new global object in.
