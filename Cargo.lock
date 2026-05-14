@@ -7627,8 +7627,10 @@ dependencies = [
 name = "servo-capi"
 version = "0.2.0"
 dependencies = [
+ "dpi",
  "log",
  "servo",
+ "url",
 ]
 
 [[package]]
