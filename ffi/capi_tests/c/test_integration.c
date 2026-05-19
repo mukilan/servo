@@ -2,15 +2,32 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 
+#define _POSIX_C_SOURCE 200809L
 #include "servo/servo_capi.h"
 #include <stdatomic.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
+
+#ifdef _WIN32
+#include <windows.h>
+#else
+#include <time.h>
+#endif
 
 #define log(fmt, ...) do { printf(fmt, ##__VA_ARGS__); fflush(stdout); } while (0)
+
+static void sleep_ms(long period) {
+#ifdef _WIN32
+    Sleep(period);
+#else
+    struct timespec delay;
+    delay.tv_sec = period / 1000;
+    delay.tv_nsec = (period % 1000) * 1000000;
+    nanosleep(&delay, NULL);
+#endif
+}
 
 typedef enum {
     TEST_STEP_STARTING = 0,
@@ -193,14 +210,14 @@ int test_webview_load_and_screenshot(void) {
     log("  Spinning event loop... (timeout 30s)\n");
     {
         int elapsed_ms = 0;
-        int poll_us = 15000;
+        int poll_ms = 15;
         while (elapsed_ms < 30000) {
             servo_spin_event_loop(servo);
             if (state.step >= TEST_STEP_SCREENSHOT_DONE) {
                 break;
             }
-            usleep(poll_us);
-            elapsed_ms += poll_us / 1000;
+            sleep_ms(poll_ms);
+            elapsed_ms += poll_ms;
         }
     }
 
