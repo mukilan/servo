@@ -638,6 +638,8 @@ impl Gui {
                         // Only the transform is set: AccessKit consumers exclude graft nodes from
                         // the presented tree, so bounds on this node would never be read.
                         node.set_transform(affine);
+
+                        //node.set_role(accesskit::Role::RootWebArea);
                     });
                 }
             }

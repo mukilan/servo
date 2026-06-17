@@ -774,6 +774,7 @@ impl HeadedWindow {
                     state.set_accessibility_active(true);
                 },
                 egui_winit::accesskit_winit::WindowEvent::ActionRequested(req) => {
+                    println!("{:?}", req);
                     if req.target_tree != accesskit::TreeId::ROOT {
                         // TODO(#4344): Forward action to Servo
                     }
@@ -1157,9 +1158,12 @@ impl PlatformWindow for HeadedWindow {
         _webview: WebView,
         tree_update: accesskit::TreeUpdate,
     ) {
+        println!("!!! {:?}", tree_update);
         self.gui
             .borrow_mut()
             .notify_accessibility_tree_update(tree_update);
+        // Ensure pending accesibility events are processed.
+        self.winit_window.request_redraw();
     }
 }
 
