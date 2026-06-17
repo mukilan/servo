@@ -10,6 +10,7 @@ file = [
     "python/requirements.txt",
     "tests/wpt/tests/tools/requirements_tests.txt",
     "tests/wpt/tests/tools/wptrunner/requirements.txt",
+    "tests/wpt/tests/tools/wptrunner/requirements_platform_accessibility.txt",
     "tests/wpt/tests/tools/requirements_flake8.txt",
 ]
 

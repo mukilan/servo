@@ -69,13 +69,15 @@ bitflags! {
     #[derive(Clone, Copy, Default, Debug, Eq, PartialEq)]
     pub(super) struct LocalAccessibilityDamage: u16 {
         /// This node's children changed, and/or any node in its subtree changed.
-        const SubtreeChanged = 0b0001;
+        const SubtreeChanged = 0b00001;
         /// This node's computed role changed.
-        const RoleChanged = 0b0010;
+        const RoleChanged = 0b00010;
         /// This node's computed label or text value (for a text node) changed.
-        const TextChanged = 0b0100;
+        const TextChanged = 0b00100;
         /// This node's visibility changed.
-        const VisibilityChanged = 0b1000;
+        const VisibilityChanged = 0b01000;
+        /// The node's author id changed.
+        const IdChanged = 0b10000;
     }
 }
 
@@ -221,6 +223,9 @@ impl AccessibilityNode {
         if let Some(dom_element) = dom_node.as_element() {
             let local_name = dom_element.local_name().to_ascii_lowercase();
             self.set_html_tag(&local_name);
+            if let Some(id) = dom_element.attribute_as_str(&ns!(), &local_name!("id")) {
+                self.set_author_id(id.to_string());
+            }
         }
     }
 
@@ -590,6 +595,19 @@ impl AccessibilityNode {
         LocalAccessibilityDamage::RoleChanged
     }
 
+    fn author_id(&self) -> Option<&str> {
+        self.accesskit_node.author_id()
+    }
+
+    fn set_author_id(&mut self, id: String) -> LocalAccessibilityDamage {
+        if self.accesskit_node.author_id() == Some(&id) {
+            return LocalAccessibilityDamage::empty();
+        }
+        self.accesskit_node.set_author_id(id);
+        self.dirty_state |= DirtyState::Updated;
+        LocalAccessibilityDamage::IdChanged
+    }
+
     fn label(&self) -> Option<&str> {
         self.accesskit_node.label()
     }
@@ -741,6 +759,9 @@ impl Debug for AccessibilityNode {
         write!(f, "{:?}: {:?}", self.id, self.role())?;
         if let Some(html_tag) = self.html_tag() {
             write!(f, " (html_tag: {html_tag:?})")?;
+        }
+        if let Some(author_id) = self.author_id() {
+            write!(f, "\nauthor_id: {author_id:?}")?;
         }
         if let Some(label) = self.label() {
             write!(f, "\nlabel: {label:?}")?;
