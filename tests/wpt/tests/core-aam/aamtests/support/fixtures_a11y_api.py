@@ -12,6 +12,8 @@ def pid_from(capabilities):
         return capabilities["safari:processID"], capabilities["browserName"]
     if capabilities["browserName"] == "MicrosoftEdge":
         return capabilities["goog:processID"], "edge"
+    if capabilities["browserName"] == "servo":
+        return capabilities["servo:processID"], "servoshell"
     return 0, capabilities["browserName"]
 
 
