@@ -842,11 +842,12 @@ impl WorkletThread {
             },
             WorkletControl::Common(script_msg) => {
                 if let CommonScriptMsg::Task(
-                    _worklet_event,  
-                    task, 
-                    _pipeline_id, 
-                    _task_source_name
-                ) = script_msg {
+                    _worklet_event,
+                    task,
+                    _pipeline_id,
+                    _task_source_name,
+                ) = script_msg
+                {
                     task.run_box(cx);
                 }
             },
