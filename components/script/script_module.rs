@@ -725,7 +725,7 @@ impl FetchResponseListener for ModuleContext {
         let global = self.owner.root();
         let (_url, module_type) = &self.module_request;
 
-        network_listener::submit_timing(cx, &self, &response, &timing);
+        // network_listener::submit_timing(cx, &self, &response, &timing);
 
         let Some(ModuleStatus::Fetching(pending)) =
             global.get_module_map_entry(&self.module_request)
