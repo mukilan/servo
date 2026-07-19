@@ -10,7 +10,7 @@
 //! thread pool implementation, which only performs GC or code loading on
 //! a backup thread, not on the primary worklet thread.
 
-use std::cell::OnceCell;
+use std::cell::{OnceCell, RefCell};
 use std::cmp::max;
 use std::collections::hash_map;
 use std::rc::Rc;
@@ -55,7 +55,7 @@ use crate::dom::window::Window;
 use crate::dom::workletglobalscope::{
     WorkletGlobalScope, WorkletGlobalScopeInit, WorkletGlobalScopeType, WorkletTask,
 };
-use crate::messaging::{CommonScriptMsg, MainThreadScriptMsg};
+use crate::messaging::{CommonScriptMsg, MainThreadScriptMsg, ScriptEventLoopSender};
 use crate::microtask::MicrotaskQueue;
 use crate::realms::enter_auto_realm;
 use crate::script_module::fetch_a_module_worker_script_graph;
@@ -569,21 +569,20 @@ impl WorkletThread {
                 },
             }
 
-            println!("Right before entering cold backup; is_cold_backup: {}; thread_id: {:?}", self.role.is_cold_backup, std::thread::current().id());
-            for scope in self.global_scopes.values() {
-                scope.perform_a_microtask_checkpoint(cx);
-            }
-
             // Only process control messages if we're the cold backup,
             // otherwise if there are outstanding control messages,
             // try to become the cold backup.
             if self.role.is_cold_backup {
-                println!("Enters cold backup");
+                println!("Enters cold backup thread_id: {:?}", std::thread::current().id());
                 if let Some(control) = self.control_buffer.take() {
                     self.process_control(control, cx);
                 }
                 while let Ok(control) = self.control_receiver.try_recv() {
                     self.process_control(control, cx);
+                }
+
+                for scope in self.global_scopes.values() {
+                    scope.perform_a_microtask_checkpoint(cx);
                 }
 
                 self.gc(cx);
@@ -593,10 +592,8 @@ impl WorkletThread {
                 self.control_buffer = Some(control);
                 let msg = WorkletData::StartSwapRoles(self.role.sender.clone());
                 let _ = self.cold_backup_sender.send(msg);
-            } else if !self.runtime.microtask_queue.empty() {
-                let msg = WorkletData::StartSwapRoles(self.role.sender.clone());
-                let _ = self.cold_backup_sender.send(msg);
             }
+
             // If we are tight on memory, and we're a backup then perform a gc.
             // If we are tight on memory, and we're the primary then try to become the hot backup.
             // Hopefully this happens soon!
@@ -652,7 +649,13 @@ impl WorkletThread {
             hash_map::Entry::Occupied(entry) => DomRoot::from_ref(entry.get()),
             hash_map::Entry::Vacant(entry) => {
                 debug!("Creating new worklet global scope.");
-                let executor = WorkletExecutor::new(worklet_id, self.primary_sender.clone());
+                let executor = WorkletExecutor {
+                    worklet_id,
+                    primary_sender: self.primary_sender.clone(),
+                    hot_backup_sender: self.hot_backup_sender.clone(),
+                    cold_backup_sender: self.cold_backup_sender.clone(),
+                    control_sender: self.control_sender.clone(),
+                };
                 let result = WorkletGlobalScope::new(
                     global_type,
                     pipeline_id,
@@ -661,8 +664,7 @@ impl WorkletThread {
                     executor,
                     &self.global_init,
                     cx,
-                    self.control_sender.clone(),
-                    microtask_queue,
+                    microtask_queue
                 );
                 entry.insert(Dom::from_ref(&*result));
                 result
@@ -710,7 +712,7 @@ impl WorkletThread {
 
         let referrer = global.get_referrer();
         let credentials_mode = credentials.convert();
-        let promise_task = Rc::new(promise);
+        let promise_task = Rc::new(RefCell::new(Some(promise)));
         let script_thread_sender = self.global_init.to_script_thread_sender.clone();
         let rooted_global = DomRoot::from_ref(global);
 
@@ -738,7 +740,7 @@ impl WorkletThread {
                         debug!("Failed to load script.");
                         let old_counter = pending_tasks_struct.set_counter_to(-1);
                         if old_counter > 0 {
-                            let task = Rc::into_inner(promise_task)
+                            let task = promise_task.borrow_mut().take()
                                 .expect("no promise found" as &str)
                                 .reject_task(Error::Abort(None));
 
@@ -788,7 +790,7 @@ impl WorkletThread {
                                 .send(msg)
                                 .expect("Worklet thread outlived script thread.");
 
-                            let task = Rc::into_inner(promise_task)
+                            let task = promise_task.borrow_mut().take()
                                 .expect("no promise found" as &str)
                                 .resolve_task(());
 
@@ -881,14 +883,20 @@ pub(crate) struct WorkletExecutor {
     worklet_id: WorkletId,
     #[no_trace]
     primary_sender: Sender<WorkletData>,
+    #[no_trace]
+    hot_backup_sender: Sender<WorkletData>,
+    #[no_trace]
+    cold_backup_sender: Sender<WorkletData>,
+    #[no_trace]
+    control_sender: Sender<WorkletControl>,
 }
 
 impl WorkletExecutor {
-    fn new(worklet_id: WorkletId, primary_sender: Sender<WorkletData>) -> WorkletExecutor {
-        WorkletExecutor {
-            worklet_id,
-            primary_sender,
-        }
+    pub fn wake_threads(&self) {
+        // If any of the threads are blocked waiting on data, wake them up.
+        let _ = self.cold_backup_sender.send(WorkletData::WakeUp);
+        let _ = self.hot_backup_sender.send(WorkletData::WakeUp);
+        let _ = self.primary_sender.send(WorkletData::WakeUp);
     }
 
     /// Schedule a worklet task to be peformed by the worklet thread pool.
@@ -896,5 +904,14 @@ impl WorkletExecutor {
         let _ = self
             .primary_sender
             .send(WorkletData::Task(self.worklet_id, task));
+    }
+
+    pub(crate) fn send_control_message(&self, control_message: WorkletControl) {
+        let _ = self.control_sender.send(control_message);
+        self.wake_threads();
+    }
+
+    pub(crate) fn event_loop_sender(&self) -> ScriptEventLoopSender {
+        ScriptEventLoopSender::Worklet(self.clone())
     }
 }

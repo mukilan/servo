@@ -79,7 +79,6 @@ impl WorkletGlobalScope {
         executor: WorkletExecutor,
         init: &WorkletGlobalScopeInit,
         cx: &mut JSContext,
-        sender: Sender<WorkletControl>,
         microtask_queue: Rc<MicrotaskQueue>,
     ) -> DomRoot<WorkletGlobalScope> {
         let scope: DomRoot<WorkletGlobalScope> = match scope_type {
@@ -91,7 +90,6 @@ impl WorkletGlobalScope {
                 executor,
                 init,
                 cx,
-                sender,
                 microtask_queue,
             )),
             WorkletGlobalScopeType::Paint => DomRoot::upcast(PaintWorkletGlobalScope::new(
@@ -101,7 +99,6 @@ impl WorkletGlobalScope {
                 executor,
                 init,
                 cx,
-                sender,
                 microtask_queue,
             )),
         };
@@ -120,10 +117,10 @@ impl WorkletGlobalScope {
         inherited_secure_context: Option<bool>,
         executor: WorkletExecutor,
         init: &WorkletGlobalScopeInit,
-        event_loop_sender: Option<ScriptEventLoopSender>,
         closing: Arc<AtomicBool>,
-        microtask_queue: Rc<MicrotaskQueue>,
+        microtask_queue: Rc<MicrotaskQueue>
     ) -> Self {
+        let script_event_loop_sender = executor.event_loop_sender();
         Self {
             globalscope: GlobalScope::new_inherited(
                 init.devtools_chan.clone(),
@@ -146,7 +143,7 @@ impl WorkletGlobalScope {
             executor,
             pipeline_id,
             task_manager: Rc::new(TaskManager::new(
-                event_loop_sender,
+                Some(script_event_loop_sender),
                 pipeline_id,
                 Some(TaskCanceller { cancelled: closing }),
             )),

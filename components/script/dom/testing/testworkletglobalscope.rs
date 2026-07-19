@@ -44,7 +44,6 @@ impl TestWorkletGlobalScope {
         executor: WorkletExecutor,
         init: &WorkletGlobalScopeInit,
         cx: &mut JSContext,
-        own_sender: Sender<WorkletControl>,
         microtask_queue: Rc<MicrotaskQueue>,
     ) -> DomRoot<TestWorkletGlobalScope> {
         debug!(
@@ -60,7 +59,6 @@ impl TestWorkletGlobalScope {
                 inherited_secure_context,
                 executor,
                 init,
-                Some(ScriptEventLoopSender::Worklet(own_sender)),
                 closing,
                 microtask_queue,
             ),

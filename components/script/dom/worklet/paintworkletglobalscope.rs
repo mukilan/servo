@@ -97,7 +97,6 @@ impl PaintWorkletGlobalScope {
         executor: WorkletExecutor,
         init: &WorkletGlobalScopeInit,
         cx: &mut JSContext,
-        own_sender: Sender<WorkletControl>,
         microtask_queue: Rc<MicrotaskQueue>,
     ) -> DomRoot<PaintWorkletGlobalScope> {
         debug!(
@@ -112,7 +111,6 @@ impl PaintWorkletGlobalScope {
                 inherited_secure_context,
                 executor,
                 init,
-                Some(ScriptEventLoopSender::Worklet(own_sender.clone())),
                 closing,
                 microtask_queue,
             ),
