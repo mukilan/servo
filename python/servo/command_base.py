@@ -422,6 +422,12 @@ class CommandBase(object):
                 print("Hint: Ninja-build is available on github at: https://github.com/ninja-build/ninja/releases")
                 exit(1)
 
+        # jemalloc requires to be compiled with the same page size as the machine on
+        # which it will run. Serveral modern linux distros for arm64 configure the
+        # page size to 16KB (e.g. Rasbperry Pi OS), so we configure it here.
+        if "aarch64-unknown-linux-gnu" == self.target.triple():
+            env["AARCH64_UNKNOWN_LINUX_GNU_JEMALLOC_SYS_WITH_LG_PAGE"] = "16"
+
         # Increase stylo thread stack size to 8 MiB for all builds
         # to match the recursion depth of Chromium.
         # This only reserves virtual memory space and has almost no overhead.
