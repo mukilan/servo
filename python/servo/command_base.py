@@ -426,7 +426,7 @@ class CommandBase(object):
         # which it will run. Serveral modern linux distros for arm64 configure the
         # page size to 16KB (e.g. Rasbperry Pi OS), so we configure it here.
         if "aarch64-unknown-linux-gnu" == self.target.triple():
-            env["AARCH64_UNKNOWN_LINUX_GNU_JEMALLOC_SYS_WITH_LG_PAGE"] = "16"
+            env["AARCH64_UNKNOWN_LINUX_GNU_JEMALLOC_SYS_WITH_LG_PAGE"] = "64"
 
         # Increase stylo thread stack size to 8 MiB for all builds
         # to match the recursion depth of Chromium.
