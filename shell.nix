@@ -115,6 +115,12 @@ stdenv.mkDerivation (androidEnvironment // {
     # See https://github.com/servo/mozjs/issues/375
     pkgs_gnumake_4_3.gnumake
 
+    # a11y
+    ninja
+    cairo
+    gobject-introspection
+    at-spi2-core
+
     (rustPlatform.buildRustPackage {
       name = "crown";
       src = ./support/crown;
