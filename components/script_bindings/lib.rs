@@ -100,6 +100,8 @@ pub mod codegen {
     }
 }
 
+use std::cell::RefCell;
+
 // These trait exports are public, because they are used in the DOM bindings.
 // Since they are used in derive macros,
 // it is useful that they are accessible at the root of the crate.
