@@ -518,6 +518,13 @@ impl ServoParser {
             document.has_browsing_context())
         .then_some(DomRefCell::new(String::new()));
 
+        let tokenizer_type = match &tokenizer {
+            Tokenizer::Html(_) => "HtmlTokenizer",
+            Tokenizer::AsyncHtml(_) => "AsyncHtmlTokenizer",
+            Tokenizer::Xml(_) => "XmlTokenizer",
+        };
+        println!("XXXXX {}", tokenizer_type);
+
         ServoParser {
             reflector: Reflector::new(),
             document: Dom::from_ref(document),

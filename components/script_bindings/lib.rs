@@ -98,10 +98,20 @@ pub mod codegen {
     }
 }
 
+use std::cell::RefCell;
+
 // These trait exports are public, because they are used in the DOM bindings.
 // Since they are used in derive macros,
 // it is useful that they are accessible at the root of the crate.
 pub(crate) use js::gc::Traceable as JSTraceable;
+
+thread_local! {
+    /// A stack of the type and field names currently being traced, used to
+    /// build diagnostic trace paths in debug builds. Tracing of GC objects
+    /// always happens on the thread that owns the SpiderMonkey runtime, so a
+    /// thread-local stack is sufficient and avoids any locking.
+    pub static CURRENT_TRACED: RefCell<Vec<String>> = const { RefCell::new(Vec::new()) };
+}
 
 pub use crate::codegen::DomTypes::DomTypes;
 pub(crate) use crate::reflector::{DomObject, MutDomObject, Reflector};

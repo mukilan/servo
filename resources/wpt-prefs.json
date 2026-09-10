@@ -3,4 +3,5 @@
   "editing_caret_blink_time": 0,
   "gfx_text_antialiasing_enabled": false,
   "dom_testutils_enabled": true
+  "js_mem_gc_zeal_level": 4
 }

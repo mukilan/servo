@@ -165,7 +165,7 @@ pub(crate) mod utils;
 pub(crate) mod weakref;
 pub(crate) mod xmlname;
 
-pub(crate) use script_bindings::{callback, iterable, num};
+pub(crate) use script_bindings::{callback, iterable, num, CURRENT_TRACED};
 
 /// Generated JS-Rust bindings.
 #[allow(missing_docs, non_snake_case)]

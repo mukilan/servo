@@ -147,6 +147,8 @@ fn assert_not_impl_traceable(ty: &syn::Type) -> proc_macro2::TokenStream {
 
 fn js_traceable_derive(s: synstructure::Structure) -> proc_macro2::TokenStream {
     let mut asserts = quote!();
+    let ast = s.ast();
+    let name = &ast.ident;
     let match_body = s.each(|binding| {
         for attr in binding.ast().attrs.iter() {
             if attr.path().is_ident("no_trace") {
@@ -160,11 +162,15 @@ fn js_traceable_derive(s: synstructure::Structure) -> proc_macro2::TokenStream {
                 return Some(quote!(<dyn crate::CustomTraceable>::trace(#binding, tracer);));
             }
         }
-        Some(quote!(#binding.trace(tracer);))
+        let field_name = binding.ast().ident.as_ref().map(|i| i.to_string()).unwrap_or_else(|| String::from(".??"));
+        Some(quote!({
+            use crate::CURRENT_TRACED;
+            CURRENT_TRACED.with(|t| t.borrow_mut().push(format!("{}.{}", stringify!(#name), #field_name)));
+            #binding.trace(tracer);
+            CURRENT_TRACED.with(|t| t.borrow_mut().pop());
+        }))
     });
 
-    let ast = s.ast();
-    let name = &ast.ident;
     let (impl_generics, ty_generics, where_clause) = ast.generics.split_for_impl();
     let mut where_clause = where_clause.unwrap_or(&parse_quote!(where)).clone();
     for param in ast.generics.type_params() {

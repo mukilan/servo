@@ -62,11 +62,13 @@ pub(crate) unsafe fn trace_object(
     obj: &Heap<*mut JSObject>,
 ) {
     unsafe {
-        trace!("tracing {}", description);
+        //println!("tracing {:?}", cstr);
+        let cstr = std::ffi::CString::new(description);
+        let cstr = cstr.map(|s| s.into_raw() as *const std::ffi::c_char).unwrap_or_else(|_| GCTraceKindToAscii(TraceKind::Object));
         CallObjectTracer(
             tracer,
             obj.ptr.get() as *mut _,
-            GCTraceKindToAscii(TraceKind::Object),
+            cstr,
         );
     }
 }

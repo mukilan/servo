@@ -231,13 +231,14 @@ impl<T: DomObject> Deref for Dom<T> {
 
 unsafe impl<T: DomObject> JSTraceable for Dom<T> {
     unsafe fn trace(&self, tracer: *mut JSTracer) {
+        use crate::CURRENT_TRACED;
         let trace_info = if cfg!(debug_assertions) {
-            std::any::type_name::<T>()
+            format!("{:?} -> {}", CURRENT_TRACED.with(|t| t.borrow().join(" -> ")), std::any::type_name::<T>())
         } else {
-            "DOM object on heap"
+            String::from("DOM object on heap")
         };
         unsafe {
-            trace_reflector(tracer, trace_info, (*self.ptr.as_ptr()).reflector());
+            trace_reflector(tracer, &trace_info, (*self.ptr.as_ptr()).reflector());
         }
     }
 }

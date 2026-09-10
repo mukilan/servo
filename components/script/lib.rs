@@ -60,6 +60,8 @@ pub(crate) use crate::dom::bindings::codegen::DomTypeHolder::DomTypeHolder;
 // it is useful that they are accessible at the root of the crate.
 pub(crate) use crate::dom::bindings::inheritance::HasParent;
 pub(crate) use crate::dom::bindings::trace::{CustomTraceable, JSTraceable};
+pub(crate) use crate::dom::bindings::CURRENT_TRACED;
+
 pub use crate::dom::serviceworker::serviceworker_manager::ServiceWorkerManager;
 pub use crate::engine::handle::JSEngineSetup;
 pub use crate::engine::init::init;
