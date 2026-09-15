@@ -16,6 +16,9 @@ use crate::conversions::DerivedFrom;
 use crate::inheritance::Castable;
 use crate::root::{Dom, DomRoot};
 
+//use js::gc::{Initialize, GCMethods};
+use js::rust::wrappers2::IncrementalPreWriteBarrier;
+
 /// A holder that provides interior mutability for GC-managed values such as
 /// `Dom<T>`.  Essentially a `Cell<Dom<T>>`, but safer.
 ///
