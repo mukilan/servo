@@ -7,7 +7,7 @@ use std::hash::Hash;
 use std::rc::{Rc, Weak};
 
 use accesskit::{
-    Affine as AccesskitAffine, Node as AccesskitNode, NodeId, Rect as AccesskitRect, Role, Tree,
+    Affine as AccesskitAffine, Node as AccesskitNode, NodeId, Rect as AccesskitRect, Role, TreeInfo,
     TreeId, TreeUpdate, Uuid as AccesskitUuid,
 };
 use dpi::PhysicalSize;
@@ -1013,7 +1013,7 @@ impl WebView {
             self.clone(),
             TreeUpdate {
                 nodes: vec![(root_node_id, root_node), (graft_node_id, graft_node)],
-                tree: Some(Tree {
+                tree: Some(TreeInfo {
                     root: root_node_id,
                     toolkit_name: None,
                     toolkit_version: None,
