@@ -812,7 +812,7 @@ impl Layout for LayoutThread {
         self.set_force_accessibility_update_if_active();
         let mut accessibility_tree = self.accessibility_tree.borrow_mut();
         if accessibility_tree.is_none() {
-            *accessibility_tree = Some(AccessibilityTree::new(self.id.into(), epoch));
+            *accessibility_tree = Some(AccessibilityTree::new(self.url.clone(), self.id.into(), epoch));
         }
     }
 

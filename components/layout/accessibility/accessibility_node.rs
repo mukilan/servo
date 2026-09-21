@@ -69,15 +69,18 @@ bitflags! {
     #[derive(Clone, Copy, Default, Debug, Eq, PartialEq)]
     pub(super) struct LocalAccessibilityDamage: u16 {
         /// This node's children changed, and/or any node in its subtree changed.
-        const SubtreeChanged = 0b00001;
+        const SubtreeChanged = 0b000001;
         /// This node's computed role changed.
-        const RoleChanged = 0b00010;
+        const RoleChanged = 0b000010;
         /// This node's computed label or text value (for a text node) changed.
-        const TextChanged = 0b00100;
+        const TextChanged = 0b000100;
         /// This node's visibility changed.
-        const VisibilityChanged = 0b01000;
+        const VisibilityChanged = 0b001000;
         /// The node's author id changed.
-        const IdChanged = 0b10000;
+        const IdChanged = 0b010000;
+        /// The Document's URL changed due to navigation, causing the `body` element's
+        /// `url` attribute to change.
+        const UrlChanged = 0b100000;
     }
 }
 
@@ -600,12 +603,25 @@ impl AccessibilityNode {
     }
 
     fn set_author_id(&mut self, id: String) -> LocalAccessibilityDamage {
-        if self.accesskit_node.author_id() == Some(&id) {
+        if self.accesskit_node.html_id() == Some(&id) {
             return LocalAccessibilityDamage::empty();
         }
-        self.accesskit_node.set_author_id(id);
+        self.accesskit_node.set_html_id(id);
         self.dirty_state |= DirtyState::Updated;
         LocalAccessibilityDamage::IdChanged
+    }
+
+    fn url(&self) -> Option<&str> {
+        self.accesskit_node.url()
+    }
+
+    pub(super) fn set_url(&mut self, url: String) -> LocalAccessibilityDamage {
+        if self.accesskit_node.url() == Some(&url) {
+            return LocalAccessibilityDamage::empty();
+        }
+        self.accesskit_node.set_url(url);
+        self.dirty_state |= DirtyState::Updated;
+        LocalAccessibilityDamage::UrlChanged
     }
 
     fn label(&self) -> Option<&str> {

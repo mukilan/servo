@@ -10,7 +10,7 @@ use std::sync::atomic::AtomicU64;
 
 use accesskit::{ActionRequest, NodeId, Role};
 use layout_api::{
-    AccessibilityActionRequest, AccessibilityDamage, LayoutNode, node_id_from_scroll_id,
+    AccessibilityActionRequest, AccessibilityDamage, LayoutElement, LayoutNode, node_id_from_scroll_id,
 };
 use paint_api::display_list::SpatialTreeNodeInfo;
 use rustc_hash::{FxHashMap, FxHashSet};
@@ -19,7 +19,9 @@ use servo_base::Epoch;
 use servo_base::print_tree::PrintTree;
 use servo_config::opts::{self, DiagnosticsLogging, DiagnosticsLoggingOption};
 use servo_config::pref;
+use servo_url::ServoUrl;
 use style::dom::OpaqueNode;
+use web_atoms::local_name;
 use webrender_api::ExternalScrollId;
 use webrender_api::units::LayoutVector2D;
 
@@ -79,6 +81,8 @@ pub struct AccessibilityTree {
     /// Debug options, copied from configuration to this `AccessibilityTree` in order
     /// to avoid having to constantly access the thread-safe global options.
     debug: DiagnosticsLogging,
+    /// The URL of the document for this tree.
+    url: ServoUrl,
 }
 
 /// Changes which have occurred during the current update, and data required to process the update.
@@ -138,7 +142,7 @@ pub(super) enum TreeChange {
 
 impl AccessibilityTree {
     /// See [`Self::tree_id`] and [`Self::embedder_epoch`] for explanations of the parameters.
-    pub(crate) fn new(tree_id: accesskit::TreeId, embedder_epoch: Epoch) -> Self {
+    pub(crate) fn new(url: ServoUrl, tree_id: accesskit::TreeId, embedder_epoch: Epoch) -> Self {
         Self {
             nodes: FxHashMap::default(),
             focused_node_id: None,
@@ -150,6 +154,7 @@ impl AccessibilityTree {
             embedder_epoch,
             pending_actions: vec![],
             debug: opts::get().debug.clone(),
+            url,
         }
     }
 
@@ -417,6 +422,12 @@ impl AccessibilityTree {
         if update.is_new(&id) {
             let mut node = node_ref.borrow_mut();
             node.initialize_from_dom_node(dom_node);
+            if let Some(dom_element) = dom_node.as_element() {
+                let local_name = dom_element.local_name().to_ascii_lowercase();
+                if local_name == local_name!("body") {
+                    node.set_url(self.url.clone().into_string());
+                }
+            }
             update.insert_damage(id, AccessibilityDamage::Rebuild);
             node.add_dirty_state(DirtyState::HasDamage);
         }
@@ -801,7 +812,8 @@ impl<'update> AccessibilityUpdate<'update> {
 #[cfg(test)]
 #[test]
 fn test_accessibility_update_add_some_nodes_twice() {
-    let mut tree = AccessibilityTree::new(accesskit::TreeId::ROOT, Epoch::default());
+    let url = ServoUrl::parse("servo:test").unwrap();
+    let mut tree = AccessibilityTree::new(url, accesskit::TreeId::ROOT, Epoch::default());
     let mut root_update = AccessibilityUpdate::new(AccessibilityDamageMap::default(), &tree);
 
     let root_node = tree.get_or_create_node_with_id(NodeId(2), &mut root_update);
