@@ -754,7 +754,7 @@ impl Layout for LayoutThread {
         if accessibility_tree.is_some() {
             return;
         }
-        *accessibility_tree = Some(AccessibilityTree::new(self.id.into(), epoch));
+        *accessibility_tree = Some(AccessibilityTree::new(self.url.clone(), self.id.into(), epoch));
     }
 
     fn accessibility_active(&self) -> bool {
