@@ -106,10 +106,6 @@ use std::cell::RefCell;
 pub(crate) use js::gc::Traceable as JSTraceable;
 
 thread_local! {
-    /// A stack of the type and field names currently being traced, used to
-    /// build diagnostic trace paths in debug builds. Tracing of GC objects
-    /// always happens on the thread that owns the SpiderMonkey runtime, so a
-    /// thread-local stack is sufficient and avoids any locking.
     pub static CURRENT_TRACED: RefCell<Vec<String>> = const { RefCell::new(Vec::new()) };
 }
 

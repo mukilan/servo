@@ -165,9 +165,14 @@ fn js_traceable_derive(s: synstructure::Structure) -> proc_macro2::TokenStream {
         let field_name = binding.ast().ident.as_ref().map(|i| i.to_string()).unwrap_or_else(|| String::from(".??"));
         Some(quote!({
             use crate::CURRENT_TRACED;
-            CURRENT_TRACED.with(|t| t.borrow_mut().push(format!("{}.{}", stringify!(#name), #field_name)));
+            let name = format!("{}.{}", stringify!(#name), #field_name);
+            CURRENT_TRACED.with(|t|  t.borrow_mut().push(name.clone()));
+            js::gc::CURRENT_TRACED.with(|t| t.borrow_mut().push(name));
+
             #binding.trace(tracer);
+
             CURRENT_TRACED.with(|t| t.borrow_mut().pop());
+            js::gc::CURRENT_TRACED.with(|t| t.borrow_mut().pop());
         }))
     });
 
