@@ -279,7 +279,10 @@ impl<T: DomObject> MutNullableDom<T> {
     pub fn set(&self, val: Option<&T>) {
         assert_in_script();
         unsafe {
-            *self.ptr.get() = val.map(|p| Dom::from_ref(p));
+            let prev = std::mem::replace(&mut * self.ptr.get(), val.map(|p| Dom::from_ref(p)));
+            if let Some(dom) = prev {
+                IncrementalPreWriteBarrier(dom.reflector().get_jsobject().get());
+            }
         }
     }
 
@@ -295,6 +298,11 @@ impl<T: DomObject> MutNullableDom<T> {
         self.set(None)
     }
 
+    pub fn is_some(&self) -> bool {
+        unsafe {
+            (*self.ptr.get()).is_some()
+        }
+    }
     /// Runs the given callback on the object if it's not null.
     pub fn if_is_some<F, R>(&self, cb: F) -> Option<&R>
     where
@@ -335,5 +343,11 @@ impl<T: DomObject> MallocSizeOf for MutNullableDom<T> {
     fn size_of(&self, _ops: &mut MallocSizeOfOps) -> usize {
         // See comment on MallocSizeOf for Dom<T>.
         0
+    }
+}
+
+impl<T: DomObject> Drop for MutNullableDom<T> {
+    fn drop(&mut self) {
+        self.clear()
     }
 }
