@@ -16,9 +16,6 @@ use crate::conversions::DerivedFrom;
 use crate::inheritance::Castable;
 use crate::root::{Dom, DomRoot};
 
-//use js::gc::{Initialize, GCMethods};
-use js::rust::wrappers2::IncrementalPreWriteBarrier;
-
 /// A holder that provides interior mutability for GC-managed values such as
 /// `Dom<T>`.  Essentially a `Cell<Dom<T>>`, but safer.
 ///
@@ -280,9 +277,9 @@ impl<T: DomObject> MutNullableDom<T> {
         assert_in_script();
         unsafe {
             let prev = std::mem::replace(&mut * self.ptr.get(), val.map(|p| Dom::from_ref(p)));
-            if let Some(dom) = prev {
-                IncrementalPreWriteBarrier(dom.reflector().get_jsobject().get());
-            }
+            // if let Some(dom) = prev {
+            //     IncrementalPreWriteBarrier(dom.reflector().get_jsobject().get());
+            // }
         }
     }
 
@@ -343,11 +340,5 @@ impl<T: DomObject> MallocSizeOf for MutNullableDom<T> {
     fn size_of(&self, _ops: &mut MallocSizeOfOps) -> usize {
         // See comment on MallocSizeOf for Dom<T>.
         0
-    }
-}
-
-impl<T: DomObject> Drop for MutNullableDom<T> {
-    fn drop(&mut self) {
-        self.clear()
     }
 }
