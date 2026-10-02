@@ -12,6 +12,7 @@ use js::context::NoGC;
 use js::gc::{Handle, Traceable as JSTraceable};
 use js::jsapi::{Heap, JSObject, JSTracer};
 use js::rust::GCMethods;
+use js::rust::wrappers2::IncrementalPreWriteBarrier;
 use malloc_size_of::{MallocSizeOf, MallocSizeOfOps};
 
 use crate::assert::assert_in_script;
@@ -150,20 +151,20 @@ impl<T: fmt::Debug + DomObject> fmt::Debug for Dom<T> {
 /// This should only be used as a field in other DOM objects.
 #[cfg_attr(crown, crown::unrooted_must_root_lint::must_root)]
 #[repr(transparent)]
-pub struct Dom<T> {
+pub struct Dom<T: DomObject> {
     ptr: ptr::NonNull<T>,
 }
 
 // Dom<T> is similar to Rc<T>, in that it's not always clear how to avoid double-counting.
 // For now, we choose not to follow any such pointers.
-impl<T> MallocSizeOf for Dom<T> {
+impl<T: DomObject> MallocSizeOf for Dom<T> {
     fn size_of(&self, _ops: &mut MallocSizeOfOps) -> usize {
         0
     }
 }
 
 /// Compare by pointer address
-impl<T> PartialEq for Dom<T> {
+impl<T: DomObject> PartialEq for Dom<T> {
     fn eq(&self, other: &Dom<T>) -> bool {
         self.ptr.as_ptr() == other.ptr.as_ptr()
     }
@@ -176,20 +177,30 @@ impl<'a, T: DomObject> PartialEq<&'a T> for Dom<T> {
     }
 }
 
-impl<T> Eq for Dom<T> {}
+impl<T: DomObject> Eq for Dom<T> {}
 
 /// Hashes the pointer address
-impl<T> Hash for Dom<T> {
+impl<T: DomObject> Hash for Dom<T> {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.ptr.as_ptr().hash(state)
     }
 }
 
-impl<T> Clone for Dom<T> {
+impl<T: DomObject> Clone for Dom<T> {
     #[inline]
     fn clone(&self) -> Self {
         assert_in_script();
         Dom { ptr: self.ptr }
+    }
+}
+
+
+impl<T: DomObject> Drop for Dom<T> {
+    fn drop(&mut self) {
+        assert_in_script();
+        unsafe {
+            IncrementalPreWriteBarrier(self.reflector().get_jsobject().get());
+        }
     }
 }
 
