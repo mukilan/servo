@@ -1949,6 +1949,7 @@ impl ScriptThread {
                 self.handle_update_pinch_zoom_infos(cx, id, pinch_zoom_infos);
             },
             ScriptThreadMessage::SetAccessibilityActive(pipeline_id, active, epoch) => {
+                println!("{:?} received SetAccessibilityActive with {active} for {pipeline_id:?}", std::thread::current().name());
                 self.set_accessibility_active(pipeline_id, active, epoch);
             },
             ScriptThreadMessage::ForwardAccessibilityAction(pipeline_id, action_request) => {

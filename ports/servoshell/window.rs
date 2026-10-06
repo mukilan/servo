@@ -110,10 +110,12 @@ impl ServoShellWindow {
     ) -> WebView {
         let mut webview_builder = match creation_type {
             TopLevelWebViewCreationRequest::WithUrl(url) => {
+                println!("creating webview with url");
                 WebViewBuilder::new(state.servo(), self.platform_window.rendering_context())
                     .url(url)
             },
             TopLevelWebViewCreationRequest::WithCreateRequest(request) => {
+                println!("creating webview with create request");
                 request.builder(self.platform_window.rendering_context())
             },
         };
@@ -137,6 +139,7 @@ impl ServoShellWindow {
         if state.accessibility_active() {
             // Activate accessibility in the WebView.
             // There are two sites like this; this is the WebView creation site.
+            println!("servoshell setting accessibility_active to true for webview {:?}", webview.url());
             webview.set_accessibility_active(true);
         }
         webview

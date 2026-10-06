@@ -3153,6 +3153,10 @@ where
         }
     }
 
+    fn pipeline_url(&mut self, pipeline_id: PipelineId) -> ServoUrl {
+        self.pipelines.get(&pipeline_id).unwrap().url.clone()
+    }
+
     fn set_accessibility_active(&mut self, webview_id: WebViewId, active: bool) {
         if !(pref!(accessibility_enabled)) {
             return;
@@ -3171,6 +3175,7 @@ where
         // pipelines (documents in bfcache), we only need to forward the activation if and when they
         // become active (see set_frame_tree_for_webview()).
         // There are two sites like this; this is the a11y activation site.
+        println!("Constellation sending accessibility_active to {active} for {pipeline_id:?} and url {}", self.pipeline_url(pipeline_id));
         self.send_message_to_pipeline(
             pipeline_id,
             ScriptThreadMessage::SetAccessibilityActive(pipeline_id, active, epoch),
@@ -6159,6 +6164,7 @@ where
         // discarded in libservo anyway, and also ensures that when accessibility is
         // reactivated, the document sends the whole accessibility tree from scratch.
         if let Some(old_pipeline_id) = old_pipeline_id {
+            println!("Constellation(set_frame_tree_for_webview) sending accessibility_active with false to {old_pipeline_id:?} url ({})", self.pipeline_url(old_pipeline_id));
             self.send_message_to_pipeline(
                 old_pipeline_id,
                 ScriptThreadMessage::SetAccessibilityActive(old_pipeline_id, false, old_epoch),
@@ -6168,6 +6174,7 @@ where
 
         // Forward activation to layout for the active top-level document in the WebView.
         // There are two sites like this; this is the navigation (or bfcache traversal) site.
+        println!("Constellation(set_frame_tree_for_webview:2) sending accessibility_active with {accessibility_active} to {new_pipeline_id:?} url {}", self.pipeline_url(new_pipeline_id));
         self.send_message_to_pipeline(
             new_pipeline_id,
             ScriptThreadMessage::SetAccessibilityActive(

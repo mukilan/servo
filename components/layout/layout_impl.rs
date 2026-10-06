@@ -752,6 +752,7 @@ impl Layout for LayoutThread {
     }
 
     fn set_accessibility_active(&self, active: bool, epoch: Epoch) {
+        println!("{:?} setting accessibility_active to {:?} from {}", std::thread::current().name(), active, self.accessibility_active.get());
         self.accessibility_active.set(active);
         if !active {
             self.accessibility_tree.replace(None);

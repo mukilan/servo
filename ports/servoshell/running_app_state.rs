@@ -814,6 +814,8 @@ impl WebViewDelegate for RunningAppState {
             .delegate(parent_webview.delegate())
             .build();
 
+       //webview.set_accessibility_active(self.accessibility_active());
+
         window.add_webview(webview.clone());
         window.activate_webview(webview.id());
     }
