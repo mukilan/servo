@@ -108,6 +108,9 @@ pub unsafe trait CustomTraceable {
     /// implementors of this method must ensure that all active objects are properly traced
     /// or else the garbage collector may end up collecting objects that are still reachable.
     unsafe fn trace(&self, trc: *mut JSTracer);
+
+    fn pre_write_barrier(&self) {
+    }
 }
 
 unsafe impl<T: CustomTraceable> CustomTraceable for Box<T> {

@@ -182,6 +182,25 @@ fn js_traceable_derive(s: synstructure::Structure) -> proc_macro2::TokenStream {
         }))
     });
 
+    let match_body_pre_write_barrier = s.each(|binding| {
+        for attr in binding.ast().attrs.iter() {
+            if attr.path().is_ident("no_trace") {
+                // If no reason argument is provided to `no_trace` (ie `#[no_trace="This types does not need..."]`),
+                // assert that the type in this bound field does not implement traceable.
+                if !matches!(attr.meta, syn::Meta::NameValue(_)) {
+                    asserts.extend(assert_not_impl_traceable(&binding.ast().ty));
+                }
+                return None;
+            } else if attr.path().is_ident("custom_trace") {
+                // is this correct?
+                return Some(quote!(<dyn crate::CustomTraceable>::pre_write_barrier(#binding);));
+            }
+        }
+        Some(quote!(
+            #binding.pre_write_barrier();
+        ))
+    });
+
     let (impl_generics, ty_generics, where_clause) = ast.generics.split_for_impl();
     let mut where_clause = where_clause.unwrap_or(&parse_quote!(where)).clone();
     for param in ast.generics.type_params() {
@@ -202,6 +221,14 @@ fn js_traceable_derive(s: synstructure::Structure) -> proc_macro2::TokenStream {
                 use crate::JSTraceable;
                 match *self {
                     #match_body
+                }
+            }
+
+            fn pre_write_barrier(&self) {
+                //println!("derived pre_write_barrier for {:?}", std::any::type_name::<Self>());
+                use crate::JSTraceable;
+                match *self {
+                    #match_body_pre_write_barrier
                 }
             }
         }
