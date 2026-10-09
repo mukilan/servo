@@ -465,8 +465,10 @@ codegen-units = 1
 #
 # Or for mozjs:
 
-mozjs = { path = "../../mozjs/mozjs" }
-mozjs_sys = { path = "../../mozjs/mozjs-sys" }
+#mozjs = { path = "../../mozjs/mozjs" }
+#mozjs_sys = { path = "../../mozjs/mozjs-sys" }
+mozjs = { git = "https://github.com/mukilan/mozjs", branch = "barrier-patch" }
+mozjs_sys = { git = "https://github.com/mukilan/mozjs", branch = "barrier-patch" }
 
 # mozjs = { path = "../mozjs/mozjs" }
 # mozjs_sys = { path = "../mozjs/mozjs-sys" }
