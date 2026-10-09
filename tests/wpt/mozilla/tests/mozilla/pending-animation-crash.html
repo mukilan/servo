@@ -1,0 +1,15 @@
+<!doctype html>
+<html class="test-wait">
+<script>
+let a = [];
+requestAnimationFrame(() => {
+  for (let i = 0; i < 100; i++) {
+    let array = new Array();
+    for (let j = 0; j < 100; j++) {
+      array.push(new Array());
+    }
+    a.push(array);
+  }
+});
+requestAnimationFrame(() => document.documentElement.classList.remove('test-wait'));
+</script>

@@ -32,9 +32,10 @@ use html5ever::{LocalName, QualName, local_name, ns};
 use hyper_serde::Serde;
 use indexmap::IndexSet;
 use js::context::{JSContext, NoGC};
+use js::glue::ObjectIsTenured;
 use js::jsapi::JSObject;
 use js::realm::CurrentRealm;
-use js::rust::{HandleObject, HandleValue, MutableHandleValue};
+use js::rust::{HandleObject, HandleValue, MutableHandleValue, RootedVFTable};
 use layout_api::{
     LCPCandidate, PendingRestyle, ReflowGoal, ReflowPhasesRun, ReflowStatistics, RestyleReason,
     ScrollContainerQueryFlags, TrustedNodeAddress,
@@ -57,7 +58,7 @@ use profile_traits::time::TimerMetadataFrameType;
 use profile_traits::{generic_channel as profile_generic_channel, path};
 use regex::bytes::Regex;
 use rustc_hash::{FxBuildHasher, FxHashMap, FxHashSet};
-use script_bindings::callback::{RootedCallback, ThisReflector};
+use script_bindings::callback::{HasCallbackHolder, RootedCallback, ThisReflector};
 use script_bindings::cell::{DomRefCell, Ref, RefMut};
 use script_bindings::interfaces::DocumentHelpers;
 use script_bindings::reflector::reflect_dom_object_with_proto;
@@ -7206,9 +7207,10 @@ pub(crate) enum AnimationFrameCallback {
     },
 }
 
-impl js::gc::Rootable for AnimationFrameCallback {}
+impl js::gc::Rootable for AnimationFrameCallback { }
 
 impl AnimationFrameCallback {
+    #[expect(unsafe_code)]
     fn call(&self, cx: &mut JSContext, document: &Document, now: f64) {
         match *self {
             AnimationFrameCallback::DevtoolsFramerateTick { ref actor_name } => {
@@ -7219,6 +7221,9 @@ impl AnimationFrameCallback {
             AnimationFrameCallback::FrameRequestCallback { ref callback } => {
                 // TODO(jdm): The spec says that any exceptions should be suppressed:
                 // https://github.com/servo/servo/issues/6928
+                let cb_obj = callback.callback();
+                let tenured = unsafe { ObjectIsTenured(cb_obj) };
+                println!("addrs of callback object before call: {:?}. Tenured? {tenured}", callback.callback());
                 let _ = callback.Call__(cx, Finite::wrap(now), ExceptionHandling::Report);
             },
         }
