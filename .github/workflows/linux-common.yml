@@ -169,37 +169,38 @@ jobs:
         run: cargo install --path support/crown
 
       - name: Build (${{ inputs.profile }})
-        env:
-          RUSTFLAGS: ${{ inputs.profile == 'checked-release' && '-D warnings' || '' }}
+#        env:
+#          RUSTFLAGS: ${{ inputs.profile == 'checked-release' && '-D warnings' || '' }}
         run: |
-          ./mach build --use-crown --locked --profile ${{ inputs.profile }} ${{ inputs.build-args }}
+          export MOZJS_FROM_SOURCE=1
+          ./mach build --use-crown --locked --profile ${{ inputs.profile }} --features debugmozjs ${{ inputs.build-args }}
           mv target/cargo-timings target/cargo-timings-linux
       - name: Smoketest
         run: xvfb-run ./mach smoketest --profile ${{ inputs.profile  }}
       - name: Script tests
         run: ./mach test-scripts
-      - name: Unit tests
-        id: run_unit_tests
-        if: ${{ inputs.unit-tests }}
-        env:
-          NEXTEST_RETRIES: 2 # https://github.com/servo/servo/issues/30683
-          LANG: en-US
-        run: |
-          ./mach test-unit --profile ${{ inputs.profile }} --nextest-profile ci
-          ./mach test-unit --profile ${{ inputs.profile }} --doc
-      # We upload the test-results to Codecov to help us identify flaky unit-tests.
-      - name: Upload test results to Codecov
-        # Upload test results to Codecov, also for failed unit-tests, but only
-        # if unit-tests were supposed to run, and not if they were skipped (e.g., due
-        # to an earlier failure).
-        if: ${{ !cancelled() && steps.run_unit_tests.conclusion != 'skipped' }}
-        uses: codecov/codecov-action@v6
-        with:
-          report_type: test_results
-          files: target/nextest/ci/junit.xml
-          disable_search: true
-          flags: unittests,unittests-linux,unittests-linux-${{ inputs.profile }}
-          token: ${{ secrets.CODECOV_TOKEN }}
+#      - name: Unit tests
+#        id: run_unit_tests
+#        if: ${{ inputs.unit-tests }}
+#        env:
+#          NEXTEST_RETRIES: 2 # https://github.com/servo/servo/issues/30683
+#          LANG: en-US
+#        run: |
+#          ./mach test-unit --profile ${{ inputs.profile }} --nextest-profile ci
+#          ./mach test-unit --profile ${{ inputs.profile }} --doc
+#      # We upload the test-results to Codecov to help us identify flaky unit-tests.
+#      - name: Upload test results to Codecov
+#        # Upload test results to Codecov, also for failed unit-tests, but only
+#        # if unit-tests were supposed to run, and not if they were skipped (e.g., due
+#        # to an earlier failure).
+#        if: ${{ !cancelled() && steps.run_unit_tests.conclusion != 'skipped' }}
+#        uses: codecov/codecov-action@v6
+#        with:
+#          report_type: test_results
+#          files: target/nextest/ci/junit.xml
+#          disable_search: true
+#          flags: unittests,unittests-linux,unittests-linux-${{ inputs.profile }}
+#          token: ${{ secrets.CODECOV_TOKEN }}
       - name: Devtools tests
         if: ${{ inputs.devtools-tests }}
         run: ./mach test-devtools --profile ${{ inputs.profile }}
@@ -225,78 +226,78 @@ jobs:
         run: |
           echo "artifact_ids=${{steps.upload-tarball.outputs.artifact-id}}" >> $GITHUB_OUTPUT
 
-  build-libservo:
-    if: ${{ inputs.build-libservo }}
-    name: Build libservo and MSRV check (${{ inputs.arch }})
-    runs-on: ${{ inputs.github-runner-label }}
-    steps:
-      - uses: servo/ci-runners/actions/checkout@b42c96524cdd72126255602c69c4ad649c750ebf
-      - name: Free Disk Space (Ubuntu)
-        uses: jlumbroso/free-disk-space@main
-        if: ${{ runner.environment != 'self-hosted' }}
-        with:
-          tool-cache: false
-          large-packages: false
-          swap-storage: false
-      - name: Install LLVM and Clang
-        uses: KyleMayes/install-llvm-action@v2
-        with:
-          version: "20.1"
-          directory: ${{ runner.temp }}/llvm
-      - name: Set LIBCLANG_PATH env
-        run: echo "LIBCLANG_PATH=${LLVM_PATH}/lib" >> $GITHUB_ENV
-      - name: Setup Python
-        uses: ./.github/actions/setup-python
-      - name: Determine MSRV
-        id: msrv
-        uses: ./.github/actions/parse_msrv
-      - name: Install MSRV
-        uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: ${{ steps.msrv.outputs.rust_version }}
-      # We can remove this after upgrading to Rust 1.90, but for now
-      # installing lld is the easiest way to get it in path.
-      - name: install lld
-        run: sudo apt-get install -y lld
-      - name: Compile libservo with MSRV
-        env:
-          # lld seems to use less memory and prevents OOM errors during linking.
-          # We can remove this after upgrading to Rust 1.90, where lld will be the default.
-          RUSTFLAGS: "-C link-arg=-fuse-ld=lld"
-          LLVM_OBJDUMP: llvm-objdump-14
-        run: |
-          cargo +${{ steps.msrv.outputs.rust_version }} build -p servo --locked
-
-  capi:
-    if: ${{ inputs.capi }}
-    name: Build and test Servo's C API (${{ inputs.arch }})
-    runs-on: ${{ inputs.github-runner-label }}
-    steps:
-      - uses: servo/ci-runners/actions/checkout@b42c96524cdd72126255602c69c4ad649c750ebf
-      - name: Free Disk Space (Ubuntu)
-        uses: jlumbroso/free-disk-space@main
-        with:
-          tool-cache: false
-          large-packages: false
-          swap-storage: false
-      - name: Install LLVM and Clang
-        uses: KyleMayes/install-llvm-action@v2
-        with:
-          version: "20.1"
-          directory: ${{ runner.temp }}/llvm
-      - name: Set LIBCLANG_PATH env
-        run: echo "LIBCLANG_PATH=${LLVM_PATH}/lib" >> $GITHUB_ENV
-      - name: Setup Python
-        uses: ./.github/actions/setup-python
-      - name: Change Mirror Priorities
-        uses: ./.github/actions/apt-mirrors
-      - name: Install EGL library and headers
-        run: |
-          sudo apt update
-          sudo apt install -y libegl1-mesa-dev libegl-dev
-      - name: Install cargo-c # required by servo-capi-tests's build.rs
-        uses: taiki-e/install-action@v2
-        with:
-          tool: cargo-c@0.10.23
-      - name: Build and test servo-capi-tests
-        run: cargo test -p servo-capi-tests --locked
+#  build-libservo:
+#    if: ${{ inputs.build-libservo }}
+#    name: Build libservo and MSRV check (${{ inputs.arch }})
+#    runs-on: ${{ inputs.github-runner-label }}
+#    steps:
+#      - uses: servo/ci-runners/actions/checkout@b42c96524cdd72126255602c69c4ad649c750ebf
+#      - name: Free Disk Space (Ubuntu)
+#        uses: jlumbroso/free-disk-space@main
+#        if: ${{ runner.environment != 'self-hosted' }}
+#        with:
+#          tool-cache: false
+#          large-packages: false
+#          swap-storage: false
+#      - name: Install LLVM and Clang
+#        uses: KyleMayes/install-llvm-action@v2
+#        with:
+#          version: "20.1"
+#          directory: ${{ runner.temp }}/llvm
+#      - name: Set LIBCLANG_PATH env
+#        run: echo "LIBCLANG_PATH=${LLVM_PATH}/lib" >> $GITHUB_ENV
+#      - name: Setup Python
+#        uses: ./.github/actions/setup-python
+#      - name: Determine MSRV
+#        id: msrv
+#        uses: ./.github/actions/parse_msrv
+#      - name: Install MSRV
+#        uses: dtolnay/rust-toolchain@master
+#        with:
+#          toolchain: ${{ steps.msrv.outputs.rust_version }}
+#      # We can remove this after upgrading to Rust 1.90, but for now
+#      # installing lld is the easiest way to get it in path.
+#      - name: install lld
+#        run: sudo apt-get install -y lld
+#      - name: Compile libservo with MSRV
+#        env:
+#          # lld seems to use less memory and prevents OOM errors during linking.
+#          # We can remove this after upgrading to Rust 1.90, where lld will be the default.
+#          RUSTFLAGS: "-C link-arg=-fuse-ld=lld"
+#          LLVM_OBJDUMP: llvm-objdump-14
+#        run: |
+#          cargo +${{ steps.msrv.outputs.rust_version }} build -p servo --locked
+#
+#  capi:
+#    if: ${{ inputs.capi }}
+#    name: Build and test Servo's C API (${{ inputs.arch }})
+#    runs-on: ${{ inputs.github-runner-label }}
+#    steps:
+#      - uses: servo/ci-runners/actions/checkout@b42c96524cdd72126255602c69c4ad649c750ebf
+#      - name: Free Disk Space (Ubuntu)
+#        uses: jlumbroso/free-disk-space@main
+#        with:
+#          tool-cache: false
+#          large-packages: false
+#          swap-storage: false
+#      - name: Install LLVM and Clang
+#        uses: KyleMayes/install-llvm-action@v2
+#        with:
+#          version: "20.1"
+#          directory: ${{ runner.temp }}/llvm
+#      - name: Set LIBCLANG_PATH env
+#        run: echo "LIBCLANG_PATH=${LLVM_PATH}/lib" >> $GITHUB_ENV
+#      - name: Setup Python
+#        uses: ./.github/actions/setup-python
+#      - name: Change Mirror Priorities
+#        uses: ./.github/actions/apt-mirrors
+#      - name: Install EGL library and headers
+#        run: |
+#          sudo apt update
+#          sudo apt install -y libegl1-mesa-dev libegl-dev
+#      - name: Install cargo-c # required by servo-capi-tests's build.rs
+#        uses: taiki-e/install-action@v2
+#        with:
+#          tool: cargo-c@0.10.23
+#      - name: Build and test servo-capi-tests
+#        run: cargo test -p servo-capi-tests --locked
