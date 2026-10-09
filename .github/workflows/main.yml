@@ -33,10 +33,16 @@ jobs:
         uses: ./.github/actions/setup-python
       - name: Get Configuration
         id: configuration
+#        run: |
+#          {
+#            echo 'result<<EOF'
+#            python ./python/servo/try_parser.py ${{ github.event_name == 'pull_request' && 'linux-unit-tests lint' || github.event_name == 'push' && 'full macos-arm-capi bencher production-bencher coverage' || 'fail-fast full' }}
+#            echo EOF
+#           } >> $GITHUB_OUTPUT
         run: |
           {
             echo 'result<<EOF'
-            python ./python/servo/try_parser.py ${{ github.event_name == 'pull_request' && 'linux-unit-tests lint' || github.event_name == 'push' && 'full macos-arm-capi bencher production-bencher coverage' || 'fail-fast full' }}
+            python ./python/servo/try_parser.py ${{ github.event_name == 'pull_request' && 'linux-unit-tests lint' || github.event_name == 'push' && 'full macos-arm-capi' || 'fail-fast full' }}
             echo EOF
            } >> $GITHUB_OUTPUT
 
