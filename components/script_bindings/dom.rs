@@ -276,12 +276,18 @@ impl<T: DomObject> MutNullableDom<T> {
     pub fn set(&self, val: Option<&T>) {
         assert_in_script();
         unsafe {
-            let prev = std::mem::replace(&mut * self.ptr.get(), val.map(|p| Dom::from_ref(p)));
-            // if let Some(dom) = prev {
-            //     IncrementalPreWriteBarrier(dom.reflector().get_jsobject().get());
-            // }
+            *self.ptr.get() = val.map(|p| Dom::from_ref(p));
         }
     }
+    // pub fn set(&self, val: Opti on<&T>) {
+    //     assert_in_script();
+    //     unsafe {
+    //         let prev = std::mem::replace(&mut * self.ptr.get(), val.map(|p| Dom::from_ref(p)));
+    //         if let Some(dom) = prev {
+    //             IncrementalPreWriteBarrier(dom.reflector().get_jsobject().get());
+    //         }
+    //     }
+    // }
 
     /// Gets the current value out of this object and sets it to `None`.
     pub fn take(&self) -> Option<DomRoot<T>> {
