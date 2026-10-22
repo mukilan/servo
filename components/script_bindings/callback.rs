@@ -11,7 +11,7 @@ use std::rc::Rc;
 use js::context::JSContext;
 use js::jsapi::{Heap, IsCallable, JSObject};
 use js::jsval::{JSVal, NullValue, ObjectValue, UndefinedValue};
-use js::rust::wrappers2::{EnterRealm, JS_WrapObject, LeaveRealm};
+use js::rust::wrappers2::{EnterRealm, IncrementalPreWriteBarrier, JS_WrapObject, LeaveRealm};
 use js::rust::{HandleObject, MutableHandleValue};
 
 use crate::codegen::GenericBindings::WindowBinding::Window_Binding::WindowMethods;
@@ -111,17 +111,26 @@ impl<T: js::conversions::ToJSValConvertible> js::conversions::ToJSValConvertible
 #[derive(JSTraceable, MallocSizeOf, PartialEq)]
 /// A WebIDL callback value that can only be stored in locations that are
 /// traced by the GC.
-pub struct TracedCallback<T>(#[conditional_malloc_size_of] Rc<T>);
+pub struct TracedCallback<T: HasCallbackHolder>(#[conditional_malloc_size_of] Rc<T>);
 
-impl<T: crate::JSTraceable> js::gc::Rootable for TracedCallback<T> {}
+impl<T: HasCallbackHolder> Drop for TracedCallback<T> {
+    fn drop(&mut self) {
+        println!("Drop for TracedCallback<{:?}> inner count: {}", std::any::type_name::<Self>(), Rc::strong_count(&self.0));
+        // let callback = self.0.callback();
+        // unsafe { IncrementalPreWriteBarrier(callback); }
+    }
+}
 
-impl<T> Clone for TracedCallback<T> {
+impl<T: crate::JSTraceable + HasCallbackHolder> js::gc::Rootable for TracedCallback<T> {}
+
+impl<T: HasCallbackHolder> Clone for TracedCallback<T> {
     fn clone(&self) -> Self {
+        //println!("Cloning TracedCallback: {}", std::backtrace::Backtrace::capture());
         Self(self.0.clone())
     }
 }
 
-impl<T> std::ops::Deref for TracedCallback<T> {
+impl<T: HasCallbackHolder> std::ops::Deref for TracedCallback<T> {
     type Target = T;
     fn deref(&self) -> &Self::Target {
         &self.0
