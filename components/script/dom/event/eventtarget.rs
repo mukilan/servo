@@ -2,14 +2,15 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 
-use std::cell::{RefCell, RefMut};
+use std::cell::{Cell, LazyCell, RefCell, RefMut};
+use std::collections::HashSet;
 use std::collections::hash_map::Entry::{Occupied, Vacant};
 use std::default::Default;
 use std::ffi::CString;
 use std::mem;
 use std::ops::{Deref, DerefMut};
 use std::rc::Rc;
-use std::sync::LazyLock;
+use std::sync::{LazyLock, RwLock};
 
 use deny_public_fields::DenyPublicFields;
 use dom_struct::dom_struct;
@@ -83,6 +84,10 @@ pub(crate) static CONTENT_EVENT_HANDLER_NAMES: LazyLock<FxHashSet<&str>> = LazyL
         env!("OUT_DIR"),
         "/ContentEventHandlerNames.rs"
     )))
+});
+
+pub(crate) static ENABLE_DROP_TEST: LazyLock<RwLock<HashSet<usize>>> = LazyLock::new(|| {
+    RwLock::new(HashSet::new())
 });
 
 #[derive(Clone, JSTraceable, MallocSizeOf, PartialEq)]
@@ -188,6 +193,22 @@ impl EventListenerType {
 
     fn matches_additive(&self, callback: &EventListener) -> bool {
         matches!(self, Self::Additive(listener) if &**listener == callback)
+    }
+
+    fn cb(&self) -> String {
+        match self {
+            EventListenerType::Additive(traced_callback) => format!("additive: {:?}", traced_callback.callback()),
+            EventListenerType::Inline(ref_cell) => {
+                let inner = ref_cell.borrow();
+                match &*inner {
+                    InlineEventListener::Uncompiled(_) => todo!("uncompiled inline"),
+                    InlineEventListener::Compiled(common_event_handler) =>  {
+                        format!("compiled inline: {:?}", common_event_handler.parent().callback())
+                    }
+                    InlineEventListener::Null => todo!("null inline"),
+                }
+            }
+        }
     }
 }
 
@@ -387,22 +408,38 @@ impl std::cmp::PartialEq for EventListenerEntry {
 
 #[derive(Clone, JSTraceable, MallocSizeOf)]
 #[cfg_attr(crown, crown::unrooted_must_root_lint::must_root)]
+pub(crate) struct EventListenersEntryWrapper(
+    #[conditional_malloc_size_of] pub(crate) Rc<RefCell<EventListenerEntry>>,
+    #[ignore_malloc_size_of = "dbg"] Rc<Cell<bool>>
+    );
+
+#[derive(Clone, JSTraceable, MallocSizeOf)]
+#[cfg_attr(crown, crown::unrooted_must_root_lint::must_root)]
 /// A mix of potentially uncompiled and compiled event listeners of the same type.
-pub(crate) struct EventListeners(
-    #[conditional_malloc_size_of] Vec<Rc<RefCell<EventListenerEntry>>>,
-);
+pub(crate) struct EventListeners(Vec<EventListenersEntryWrapper>);
+
+impl Drop for EventListenersEntryWrapper {
+    fn drop(&mut self) {
+        if ENABLE_DROP_TEST.read().unwrap().contains(&(self.0.as_ptr() as usize)) {
+            if self.1.get() && Rc::strong_count(&self.0) == 1 {
+                println!("Duplicated final handle drop {}", std::backtrace::Backtrace::capture());
+            }
+            self.1.set(true);
+        }
+    }
+}
 
 impl js::gc::Rootable for EventListeners {}
 
 impl Deref for EventListeners {
-    type Target = Vec<Rc<RefCell<EventListenerEntry>>>;
-    fn deref(&self) -> &Vec<Rc<RefCell<EventListenerEntry>>> {
+    type Target = Vec<EventListenersEntryWrapper>;
+    fn deref(&self) -> &Vec<EventListenersEntryWrapper> {
         &self.0
     }
 }
 
 impl DerefMut for EventListeners {
-    fn deref_mut(&mut self) -> &mut Vec<Rc<RefCell<EventListenerEntry>>> {
+    fn deref_mut(&mut self) -> &mut Vec<EventListenersEntryWrapper> {
         &mut self.0
     }
 }
@@ -416,7 +453,7 @@ impl EventListeners {
         ty: &Atom,
     ) -> Option<CommonEventHandler> {
         for entry in &self.0 {
-            if let EventListenerType::Inline(ref inline) = entry.borrow().listener {
+            if let EventListenerType::Inline(ref inline) = entry.0.borrow().listener {
                 // Step 1.1-1.8 and Step 2
                 return get_compiled_handler(cx, inline, owner, ty);
             }
@@ -520,7 +557,7 @@ impl EventTarget {
         for (ty, entries) in handlers.iter() {
             entries
                 .iter()
-                .for_each(|entry| entry.borrow_mut().removed = true);
+                .for_each(|entry| entry.0.borrow_mut().removed = true);
             self.notify_listener_removed(ty);
         }
     }
@@ -563,6 +600,7 @@ impl EventTarget {
 
     /// <https://html.spec.whatwg.org/multipage/#event-handler-attributes:event-handlers-11>
     fn set_inline_event_listener(&self, ty: Atom, listener: &mut Option<InlineEventListener>) {
+        println!("XXXX set_inline_event_listener");
         let mut handlers = self.ensure_handlers();
         let entries = match handlers.entry(ty.clone()) {
             Occupied(entry) => entry.into_mut(),
@@ -571,34 +609,50 @@ impl EventTarget {
 
         let index = entries
             .iter()
-            .position(|entry| matches!(entry.borrow().listener, EventListenerType::Inline(_)));
-        match index {
+            .position(|entry| matches!(entry.0.borrow().listener, EventListenerType::Inline(_)));
+        let ret = match index {
             Some(idx) => {
                 // Replace if there's something to replace with, but remove entirely if there isn't.
                 if listener.is_some() {
-                    entries[idx].borrow_mut().listener = EventListenerType::Inline(
+                    println!("  1");
+                    entries[idx].0.borrow_mut().listener = EventListenerType::Inline(
                         listener.take().expect("Guaranteed above").into(),
                     );
                 } else {
-                    entries.remove(idx).borrow_mut().removed = true;
+                    println!("  2: ty: {ty}");
+                    let removed_entry = entries.remove(idx);
+                    let cb = removed_entry.0.borrow().listener.cb();
+                    println!("  2: removed_entry: {} ({})", Rc::strong_count(&removed_entry.0), cb);
+                    ENABLE_DROP_TEST.write().unwrap().insert(removed_entry.0.as_ptr() as usize);
+                    //println!("  2: bt: {:?}", std::backtrace::Backtrace::capture());
+                    removed_entry.0.borrow_mut().removed = true;
+                    //entries.remove(idx).borrow_mut().removed = true;
                     self.notify_listener_removed(&ty);
                 }
             },
             None => {
                 if listener.is_some() {
-                    entries.push(Rc::new(RefCell::new(EventListenerEntry {
-                        phase: ListenerPhase::Bubbling,
-                        listener: EventListenerType::Inline(
-                            listener.take().expect("Guaranteed above").into(),
-                        ),
-                        once: false,
-                        passive: self.default_passive_value(&ty),
-                        removed: false,
-                    })));
+                    println!("  3");
+                    entries.push(
+                        EventListenersEntryWrapper(
+                            Rc::new(RefCell::new(EventListenerEntry {
+                                phase: ListenerPhase::Bubbling,
+                                listener: EventListenerType::Inline(
+                                    listener.take().expect("Guaranteed above").into(),
+                                ),
+                                once: false,
+                                passive: self.default_passive_value(&ty),
+                                removed: false,
+                            })),
+                            Rc::default(),
+                        )
+                    );
                     self.notify_listener_added(&ty)
                 }
             },
-        }
+        };
+        println!("XXXX exit set_inline_event_listener");
+        ret
     }
 
     pub(crate) fn remove_listener(&self, ty: &Atom, entry: &Rc<RefCell<EventListenerEntry>>) {
@@ -606,9 +660,9 @@ impl EventTarget {
 
         if let Some(handlers) = handlers.as_mut() &&
             let Some(entries) = handlers.get_mut(ty) &&
-            let Some(position) = entries.iter().position(|e| *e == *entry)
+            let Some(position) = entries.iter().position(|e| e.0 == *entry)
         {
-            entries.remove(position).borrow_mut().removed = true;
+            entries.remove(position).0.borrow_mut().removed = true;
             self.notify_listener_removed(ty);
         }
     }
@@ -622,7 +676,7 @@ impl EventTarget {
     pub(crate) fn has_non_passive_listener(&self, type_: &Atom) -> bool {
         self.get_listeners_for(type_)
             .iter()
-            .any(|listener| !self.is_passive(listener))
+            .any(|listener| !self.is_passive(&listener.0))
     }
 
     fn get_inline_event_listener(
@@ -973,15 +1027,18 @@ impl EventTarget {
         // listener’s capture, then append listener to eventTarget’s event listener list.
         if entries
             .iter()
-            .all(|entry| !entry.borrow().matches_additive(phase, &listener))
+            .all(|entry| !entry.0.borrow().matches_additive(phase, &listener))
         {
-            entries.push(Rc::new(RefCell::new(EventListenerEntry {
-                phase,
-                listener: EventListenerType::Additive(listener.to_traced()),
-                once: options.once,
-                passive,
-                removed: false,
-            })));
+            entries.push(EventListenersEntryWrapper(
+                Rc::new(RefCell::new(EventListenerEntry {
+                    phase,
+                    listener: EventListenerType::Additive(listener.to_traced()),
+                    once: options.once,
+                    passive,
+                    removed: false,
+                })),
+                Rc::default()
+            ));
             self.notify_listener_added(&ty);
         }
     }
@@ -1009,10 +1066,10 @@ impl EventTarget {
             };
             if let Some(position) = entries
                 .iter()
-                .position(|entry| entry.borrow().matches_additive(phase, listener))
+                .position(|entry| entry.0.borrow().matches_additive(phase, listener))
             {
                 // Step 2. Set listener’s removed to true and remove listener from eventTarget’s event listener list.
-                entries.remove(position).borrow_mut().removed = true;
+                entries.remove(position).0.borrow_mut().removed = true;
                 self.notify_listener_removed(&ty_atom);
             }
         }
@@ -1121,7 +1178,7 @@ impl EventTarget {
         let mut listener_infos = Vec::with_capacity(handlers.0.len());
         for (event_type, event_listeners) in &handlers.0 {
             for event_listener in event_listeners.iter() {
-                let event_listener_entry = event_listener.borrow();
+                let event_listener_entry = event_listener.0.borrow();
                 listener_infos.push(devtools_traits::EventListenerInfo {
                     event_type: event_type.to_string(),
                     capturing: event_listener_entry.phase() == ListenerPhase::Capturing,
