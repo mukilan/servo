@@ -1321,6 +1321,7 @@ fn invoke(
     timeline_window: Option<&Window>,
     legacy_output_did_listeners_throw: Option<&Cell<bool>>,
 ) {
+    println!("start invoke {}", event.type_());
     // Step 1. Set event’s target to the shadow-adjusted target of the last struct in event’s path,
     // that is either struct or preceding struct, whose shadow-adjusted target is non-null.
     event.target.set(
@@ -1336,6 +1337,7 @@ fn invoke(
 
     // Step 4. If event’s stop propagation flag is set, then return.
     if event.has_flag(EventFlags::StopPropagation) {
+        println!("end invoke {}", event.type_());
         return;
     }
 
@@ -1343,6 +1345,7 @@ fn invoke(
     event.current_target.set(Some(&segment.invocation_target));
 
     // Step 6. Let listeners be a clone of event’s currentTarget attribute value’s event listener list.
+    //println!(" cloning listners");
     rooted!(&in(cx) let listeners = segment.invocation_target.get_listeners_for(&event.type_()));
 
     // Step 7. Let invocationTargetInShadowTree be struct’s invocation-target-in-shadow-tree.
@@ -1374,7 +1377,10 @@ fn invoke(
             atom!("animationstart") => atom!("webkitAnimationStart"),
             atom!("transitionend") => atom!("webkitTransitionEnd"),
             atom!("transitionrun") => atom!("webkitTransitionRun"),
-            _ => return,
+            _ => {
+                println!("end invoke {}", event.type_());
+                return;
+            }
         };
         *event.type_.borrow_mut() = legacy_type;
 
@@ -1393,6 +1399,7 @@ fn invoke(
         // Step 9.4 Set event’s type attribute value to originalEventType.
         *event.type_.borrow_mut() = original_type;
     }
+    println!("end invoke {}", event.type_());
 }
 
 /// <https://dom.spec.whatwg.org/#concept-event-listener-inner-invoke>

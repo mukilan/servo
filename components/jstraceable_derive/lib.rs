@@ -222,7 +222,7 @@ fn js_traceable_derive(s: synstructure::Structure) -> proc_macro2::TokenStream {
             }
 
             fn pre_write_barrier(&self) {
-                //println!("derived pre_write_barrier for {:?}", std::any::type_name::<Self>());
+                println!("derived pre_write_barrier for {:?}", std::any::type_name::<Self>());
                 use crate::JSTraceable;
                 match *self {
                     #match_body_pre_write_barrier
