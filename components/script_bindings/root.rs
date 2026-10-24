@@ -197,10 +197,7 @@ impl<T: DomObject> Clone for Dom<T> {
 
 impl<T: DomObject> Drop for Dom<T> {
     fn drop(&mut self) {
-        assert_in_script();
-        unsafe {
-            IncrementalPreWriteBarrier(self.reflector().get_jsobject().get());
-        }
+        self.pre_write_barrier();
     }
 }
 
@@ -250,6 +247,18 @@ unsafe impl<T: DomObject> JSTraceable for Dom<T> {
         };
         unsafe {
             trace_reflector(tracer, &trace_info, (*self.ptr.as_ptr()).reflector());
+        }
+    }
+
+    fn pre_write_barrier(&self) {
+        // let type_name = std::any::type_name::<T>();
+        // if type_name == "script::dom::workers::dedicatedworkerglobalscope::DedicatedWorkerGlobalScope" {
+        //     println!("bt {}", std::backtrace::Backtrace::capture());
+        //     return;
+        // }
+        assert_in_script();
+        unsafe {
+            IncrementalPreWriteBarrier(self.reflector().get_jsobject().get());
         }
     }
 }
