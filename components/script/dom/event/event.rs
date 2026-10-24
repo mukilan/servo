@@ -4,6 +4,7 @@
 
 use std::cell::Cell;
 use std::default::Default;
+use std::sync::atomic::AtomicU32;
 
 use bitflags::bitflags;
 #[cfg(feature = "devtools")]
@@ -1311,6 +1312,28 @@ impl TaskOnce for SimpleEventTask {
     }
 }
 
+static INVOKE_LEVEL: AtomicU32 = AtomicU32::new(0);
+
+struct InvokeLogger(String, Atom);
+impl InvokeLogger {
+    fn new(type_: Atom) -> Self {
+        let prefix =  "=".repeat(INVOKE_LEVEL.load(std::sync::atomic::Ordering::SeqCst) as usize);
+        println!("{prefix}start invoke {type_}");
+        INVOKE_LEVEL.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        InvokeLogger(prefix, type_)
+    }
+
+    fn log(&self, str: &str) {
+        println!("{}: {str}", self.0);
+    }
+}
+
+impl Drop for InvokeLogger {
+    fn drop(&mut self) {
+        INVOKE_LEVEL.fetch_sub(1, std::sync::atomic::Ordering::SeqCst);
+        println!("{}end invoke {}", self.0, self.1);
+    }
+}
 /// <https://dom.spec.whatwg.org/#concept-event-listener-invoke>
 fn invoke(
     cx: &mut JSContext,
@@ -1321,7 +1344,7 @@ fn invoke(
     timeline_window: Option<&Window>,
     legacy_output_did_listeners_throw: Option<&Cell<bool>>,
 ) {
-    println!("start invoke {}", event.type_());
+    //let _invoke_logger = InvokeLogger::new(event.type_());
     // Step 1. Set event’s target to the shadow-adjusted target of the last struct in event’s path,
     // that is either struct or preceding struct, whose shadow-adjusted target is non-null.
     event.target.set(
@@ -1337,7 +1360,6 @@ fn invoke(
 
     // Step 4. If event’s stop propagation flag is set, then return.
     if event.has_flag(EventFlags::StopPropagation) {
-        println!("end invoke {}", event.type_());
         return;
     }
 
@@ -1378,7 +1400,6 @@ fn invoke(
             atom!("transitionend") => atom!("webkitTransitionEnd"),
             atom!("transitionrun") => atom!("webkitTransitionRun"),
             _ => {
-                println!("end invoke {}", event.type_());
                 return;
             }
         };
@@ -1399,7 +1420,6 @@ fn invoke(
         // Step 9.4 Set event’s type attribute value to originalEventType.
         *event.type_.borrow_mut() = original_type;
     }
-    println!("end invoke {}", event.type_());
 }
 
 /// <https://dom.spec.whatwg.org/#concept-event-listener-inner-invoke>
