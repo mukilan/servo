@@ -480,6 +480,7 @@ impl DedicatedWorkerGlobalScope {
                     main_thread_worker: worker.clone(),
                 };
 
+                let mut final_runtime = None;
                 let runtime = unsafe {
                     Runtime::new_with_parent(Some(parent), Some(event_loop_sender.clone()))
                 };
@@ -645,7 +646,7 @@ impl DedicatedWorkerGlobalScope {
                 // Drop worker rAF state before destroying the JS runtime.
                 dedicated_worker_global_scope.clear_animation_frame_callbacks_and_unregister();
                 global_scope.fetch_group_mut().terminate(global_scope);
-                worker_global_scope.clear_js_runtime();
+                final_runtime = worker_global_scope.clear_js_runtime();
             })
             .expect("Thread spawning failed")
     }
