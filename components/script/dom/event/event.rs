@@ -1437,7 +1437,7 @@ fn inner_invoke(
 
     // Step 2. For each listener in listeners, whose removed is false:
     for listener in listeners.iter() {
-        if listener.0.borrow().removed() {
+        if listener.borrow().removed() {
             continue;
         }
 
@@ -1448,7 +1448,7 @@ fn inner_invoke(
 
         // Step 2.3 If phase is "capturing" and listener’s capture is false, then continue.
         // Step 2.4 If phase is "bubbling" and listener’s capture is true, then continue.
-        if listener.0.borrow().phase() != phase {
+        if listener.borrow().phase() != phase {
             continue;
         }
 
@@ -1458,11 +1458,11 @@ fn inner_invoke(
 
         // Step 2.5 If listener’s once is true, then remove an event listener given event’s currentTarget
         // attribute value and listener.
-        if listener.0.borrow().once() {
-            event_target.remove_listener(&event.type_(), &listener.0);
+        if listener.borrow().once() {
+            event_target.remove_listener(&event.type_(), &listener);
         }
 
-        rooted!(&in(cx) let compiled_listener = listener.0
+        rooted!(&in(cx) let compiled_listener = listener
             .borrow()
             .get_compiled_listener(cx, &event_target, &event.type_())
         );
@@ -1487,7 +1487,7 @@ fn inner_invoke(
         }
 
         // Step 2.9 If listener’s passive is true, then set event's in passive listener flag.
-        event.set_in_passive_listener(event_target.is_passive(&listener.0));
+        event.set_in_passive_listener(event_target.is_passive(&listener));
 
         // Step 2.10 If global is a Window object, then record timing info for event listener
         // given event and listener.
