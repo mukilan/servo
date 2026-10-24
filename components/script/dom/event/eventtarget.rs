@@ -581,7 +581,7 @@ impl EventTarget {
 
     /// <https://html.spec.whatwg.org/multipage/#event-handler-attributes:event-handlers-11>
     fn set_inline_event_listener(&self, ty: Atom, listener: &mut Option<InlineEventListener>) {
-        println!("XXXX set_inline_event_listener");
+        //println!("XXXX set_inline_event_listener");
         let mut handlers = self.ensure_handlers();
         let entries = match handlers.entry(ty.clone()) {
             Occupied(entry) => entry.into_mut(),
@@ -635,7 +635,7 @@ impl EventTarget {
                 }
             },
         };
-        println!("XXXX exit set_inline_event_listener");
+        ///println!("XXXX exit set_inline_event_listener");
         ret
     }
 

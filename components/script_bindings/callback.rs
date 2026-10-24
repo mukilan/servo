@@ -113,13 +113,13 @@ impl<T: js::conversions::ToJSValConvertible> js::conversions::ToJSValConvertible
 /// traced by the GC.
 pub struct TracedCallback<T: HasCallbackHolder>(#[conditional_malloc_size_of] Rc<T>);
 
-impl<T: HasCallbackHolder> Drop for TracedCallback<T> {
-    fn drop(&mut self) {
-        println!("Drop for TracedCallback<{:?}> inner count: {}", std::any::type_name::<Self>(), Rc::strong_count(&self.0));
-        // let callback = self.0.callback();
-        // unsafe { IncrementalPreWriteBarrier(callback); }
-    }
-}
+// impl<T: HasCallbackHolder> Drop for TracedCallback<T> {
+//     fn drop(&mut self) {
+//         println!("Drop for TracedCallback<{:?}> inner count: {}", std::any::type_name::<Self>(), Rc::strong_count(&self.0));
+//         // let callback = self.0.callback();
+//         // unsafe { IncrementalPreWriteBarrier(callback); }
+//     }
+// }
 
 impl<T: crate::JSTraceable + HasCallbackHolder> js::gc::Rootable for TracedCallback<T> {}
 
