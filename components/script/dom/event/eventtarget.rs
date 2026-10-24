@@ -580,6 +580,7 @@ impl EventTarget {
     }
 
     /// <https://html.spec.whatwg.org/multipage/#event-handler-attributes:event-handlers-11>
+    #[cfg_attr(crown, expect(crown::unrooted_must_root))]
     fn set_inline_event_listener(&self, ty: Atom, listener: &mut Option<InlineEventListener>) {
         //println!("XXXX set_inline_event_listener");
         let mut handlers = self.ensure_handlers();
@@ -609,7 +610,7 @@ impl EventTarget {
                     // returns.
                     use crate::js::rust::Trace;
                     removed_entry.pre_write_barrier();
-                    let cb = removed_entry.borrow().listener.cb();
+                    //let cb = removed_entry.borrow().listener.cb();
                     //println!("  2: removed_entry: {} ({})", Rc::strong_count(&removed_entry), cb);
                     //println!("  2: bt: {:?}", std::backtrace::Backtrace::capture());
                     removed_entry.borrow_mut().removed = true;
