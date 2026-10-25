@@ -506,9 +506,11 @@ impl Element {
             .push(CustomElementReaction::Upgrade(definition));
     }
 
-    pub(crate) fn clear_reaction_queue(&self) {
+    pub(crate) fn clear_reaction_queue(&self, cx: &JSContext) {
         if let Some(ref mut rare_data) = *self.rare_data_mut() {
-            rare_data.custom_element_reaction_queue.clear();
+            while !rare_data.custom_element_reaction_queue.is_empty() {
+                rooted!(&in(cx) let _item = rare_data.custom_element_reaction_queue.pop());
+            }
         }
     }
 
@@ -524,6 +526,11 @@ impl Element {
 
             if reactions.is_empty() {
                 break;
+            }
+
+            for reaction in reactions.iter() {
+                use crate::js::rust::Trace;
+                reaction.pre_write_barrier();
             }
 
             for reaction in reactions.iter() {

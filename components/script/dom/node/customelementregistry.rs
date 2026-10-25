@@ -13,6 +13,7 @@ use dom_struct::dom_struct;
 use html5ever::{LocalName, Namespace, Prefix, ns};
 use js::context::JSContext;
 use js::conversions::{FromJSValConvertible, ToJSValConvertible};
+use js::gc::Rootable;
 use js::glue::UnwrapObjectStatic;
 use js::jsapi::{HandleValueArray, Heap, IsCallable, IsConstructor, JSObject};
 use js::jsval::{BooleanValue, JSVal, NullValue, ObjectValue, UndefinedValue};
@@ -1080,7 +1081,7 @@ pub(crate) fn upgrade_element(
         element.clear_custom_element_definition(cx.no_gc());
 
         // Step 8.exception.2
-        element.clear_reaction_queue();
+        element.clear_reaction_queue(cx);
 
         // Step 8.exception.3
         let global = GlobalScope::current().expect("No current global");
@@ -1249,6 +1250,8 @@ pub(crate) enum CustomElementReaction {
         #[ignore_malloc_size_of = "mozjs"] Box<[Heap<JSVal>]>,
     ),
 }
+
+impl Rootable for CustomElementReaction {}
 
 impl CustomElementReaction {
     /// <https://html.spec.whatwg.org/multipage/#invoke-custom-element-reactions>
