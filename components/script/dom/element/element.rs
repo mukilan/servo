@@ -481,7 +481,10 @@ impl Element {
     }
 
     pub(crate) fn clear_custom_element_definition(&self, no_gc: &NoGC) {
-        self.ensure_rare_data(no_gc).custom_element_definition = None;
+        let current_def = self.ensure_rare_data(no_gc).custom_element_definition.take();
+        // found by '/custom-elements/upgrading/upgrading-parser-created-element.html'
+        use crate::js::rust::Trace;
+        current_def.pre_write_barrier();
     }
 
     #[cfg_attr(crown, expect(crown::unrooted_must_root))]
