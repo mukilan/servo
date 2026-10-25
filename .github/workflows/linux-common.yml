@@ -177,7 +177,7 @@ jobs:
 #          RUSTFLAGS: ${{ inputs.profile == 'checked-release' && '-D warnings' || '' }}
         run: |
           export MOZJS_FROM_SOURCE=1
-          ./mach build --use-crown --locked --profile ${{ inputs.profile }} --features debugmozjs ${{ inputs.build-args }}
+          ./mach build --use-crown --locked --profile ${{ inputs.profile }} ${{ inputs.build-args }}
           mv target/cargo-timings target/cargo-timings-linux
       - name: Smoketest
         run: xvfb-run ./mach smoketest --profile ${{ inputs.profile  }}
