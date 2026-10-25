@@ -592,12 +592,16 @@ impl EventTarget {
         let index = entries
             .iter()
             .position(|entry| matches!(entry.borrow().listener, EventListenerType::Inline(_)));
+        use crate::js::rust::Trace;
         let ret = match index {
             Some(idx) => {
                 // Replace if there's something to replace with, but remove entirely if there isn't.
                 if listener.is_some() {
                     //println!("  1");
-                    entries[idx].borrow_mut().listener = EventListenerType::Inline(
+                    let current_entry = &mut entries[idx];
+                    // discovered by `'/IndexedDB/interleaved-cursors-small.any.html`
+                    current_entry.pre_write_barrier();
+                    current_entry.borrow_mut().listener = EventListenerType::Inline(
                         listener.take().expect("Guaranteed above").into(),
                     );
                 } else {
@@ -608,7 +612,6 @@ impl EventTarget {
                     // incremented in the `invoke()` call, removing a event handler from inside
                     // one that executing will mean the traceable will live until the invoke
                     // returns.
-                    use crate::js::rust::Trace;
                     removed_entry.pre_write_barrier();
                     //let cb = removed_entry.borrow().listener.cb();
                     //println!("  2: removed_entry: {} ({})", Rc::strong_count(&removed_entry), cb);
