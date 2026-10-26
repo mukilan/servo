@@ -346,6 +346,7 @@ impl ServiceWorkerGlobalScope {
             .name(format!("SW:{}", script_url.debug_compact()))
             .spawn(move || {
                 thread_state::initialize(ThreadState::SCRIPT | ThreadState::IN_WORKER);
+                let mut final_runtime = None;
                 let runtime = Runtime::new(None);
                 // SAFETY: We are in a new thread, so this first cx.
                 // It is OK to have it separated of runtime here,
@@ -458,7 +459,7 @@ impl ServiceWorkerGlobalScope {
                 ) {
                     Err(_) => {
                         error!("error loading script {}", serialized_worker_url);
-                        worker_scope.clear_js_runtime();
+                        final_runtime = worker_scope.clear_js_runtime();
                         return;
                     },
                     Ok((metadata, bytes, _)) => (metadata.final_url, bytes),
@@ -511,7 +512,7 @@ impl ServiceWorkerGlobalScope {
                     CommonScriptMsg::CollectReports,
                 );
 
-                worker_scope.clear_js_runtime();
+                final_runtime = worker_scope.clear_js_runtime();
             })
             .expect("Thread spawning failed")
     }
