@@ -268,10 +268,18 @@ unsafe impl<T: CustomTraceable> CustomTraceable for DomRefCell<T> {
     unsafe fn trace(&self, trc: *mut JSTracer) {
         unsafe { (*self).borrow().trace(trc) }
     }
+
+    fn pre_write_barrier(&self) {
+        unsafe { (*self).borrow().pre_write_barrier() };
+    }
 }
 
 unsafe impl<T: js::gc::Traceable> js::gc::Traceable for DomRefCell<T> {
     unsafe fn trace(&self, trc: *mut JSTracer) {
         unsafe { (*self).borrow().trace(trc) };
+    }
+
+    fn pre_write_barrier(&self) {
+        unsafe { (*self).borrow().pre_write_barrier() };
     }
 }

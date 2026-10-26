@@ -206,8 +206,13 @@ impl HTMLScriptElement {
     fn finish_fetching_a_script(&self, cx: &mut JSContext, script_kind: ExternalScriptKind) {
         let load = self
             .result
-            .take()
-            .map(|result| result.map(Into::into))
+            .take();
+
+        // '/html/semantics/scripting-1/the-script-element/css-module/cors-crossorigin-requests.html'
+        use crate::js::rust::Trace;
+        load.pre_write_barrier();
+
+        let load = load.map(|result| result.map(Into::into))
             .expect("Result must be ready to proceed");
 
         // Step 2. If el's steps to run when the result is ready are not null, then run them.
