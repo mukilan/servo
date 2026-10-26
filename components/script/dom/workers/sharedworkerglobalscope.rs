@@ -427,6 +427,7 @@ impl SharedWorkerGlobalScope {
 
                 let event_loop_sender = ScriptEventLoopSender::SharedWorker(own_sender.clone());
 
+                let mut final_runtime = None;
                 // Shared workers currently run on a dedicated script worker thread but
                 // still create their own JS runtime in that thread; this avoids child
                 // runtime lifetime coupling with the embedding script thread.
@@ -508,15 +509,15 @@ impl SharedWorkerGlobalScope {
 
                 /// A data structure that ensures that a panicking SharedWorker will
                 /// always call `clear_js_runtime` in order to prevent it from leaking.
-                struct ClearJsRuntime<'a>(&'a WorkerGlobalScope);
-                impl Drop for ClearJsRuntime<'_> {
+                struct ClearJsRuntime<'runtime, 'global: 'runtime>(&'runtime mut Option<Runtime>, &'global WorkerGlobalScope);
+                impl Drop for ClearJsRuntime<'_, '_> {
                     fn drop(&mut self) {
-                        self.0.clear_js_runtime();
+                        *self.0 = self.1.clear_js_runtime();
                     }
                 }
 
                 let scope = global.upcast::<WorkerGlobalScope>();
-                let _clear_js_runtime = ClearJsRuntime(scope);
+                let _clear_js_runtime = ClearJsRuntime(&mut final_runtime, scope);
                 let global_scope = global.upcast::<GlobalScope>();
 
                 // Step 11.5.2. Let workerIsSecureContext be true if insideSettings is a secure context; otherwise, false.

@@ -524,8 +524,7 @@ impl WorkerGlobalScope {
             .remove_web_messaging_and_dedicated_workers_infra();
 
         // Drop the runtime.
-        let runtime = self.runtime.borrow_mut().take();
-        runtime
+        self.runtime.borrow_mut().take()
     }
 
     pub(crate) fn runtime_handle(&self) -> ParentRuntime {
