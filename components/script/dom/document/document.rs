@@ -7445,9 +7445,14 @@ impl PendingScript {
     }
 
     fn take_result(&mut self) -> Option<(DomRoot<HTMLScriptElement>, ScriptResult)> {
-        self.load
-            .take()
-            .map(|result| (DomRoot::from_ref(&*self.element), result.map(Into::into)))
+        let result = self.load
+            .take();
+
+        // '/html/semantics/scripting-1/the-script-element/module/error-and-slow-dependency.html'
+        use crate::js::rust::Trace;
+        result.pre_write_barrier();
+
+        result.map(|result| (DomRoot::from_ref(&*self.element), result.map(Into::into)))
     }
 }
 
