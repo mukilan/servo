@@ -745,6 +745,9 @@ impl ReadableStreamDefaultController {
         self.underlying_source.set(None);
 
         // Set controller.[[strategySizeAlgorithm]] to undefined.
+        // '/streams/transform-streams/errors.any.worker.html'
+        use crate::js::rust::Trace;
+        self.strategy_size.pre_write_barrier();
         *self.strategy_size.borrow_mut() = None;
     }
 
