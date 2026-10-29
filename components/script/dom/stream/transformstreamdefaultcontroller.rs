@@ -642,13 +642,19 @@ impl TransformStreamDefaultController {
             ..
         } = &self.transformer_type
         {
+            // barriers for
+            // '/streams/transform-streams/strategies.any.worker.html'
+            use crate::js::rust::Trace;
             // Set controller.[[transformAlgorithm]] to undefined.
+            transform.pre_write_barrier();
             transform.replace(None);
 
             // Set controller.[[flushAlgorithm]] to undefined.
+            flush.pre_write_barrier();
             flush.replace(None);
 
             // Set controller.[[cancelAlgorithm]] to undefined.
+            cancel.pre_write_barrier();
             cancel.replace(None);
         }
     }
