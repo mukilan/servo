@@ -350,6 +350,10 @@ unsafe impl<T: JSTraceable + 'static> JSTraceable for RootedTraceableBox<T> {
     unsafe fn trace(&self, tracer: *mut JSTracer) {
         unsafe { self.0.trace(tracer) };
     }
+
+    fn pre_write_barrier(&self) {
+        self.0.pre_write_barrier();
+    }
 }
 
 impl<T: JSTraceable + 'static> RootedTraceableBox<T> {

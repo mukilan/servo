@@ -57,6 +57,12 @@ unsafe impl<T> js::gc::Traceable for Reflector<T> {
             self.object.trace(tracer);
         }
     }
+
+    fn pre_write_barrier(&self) {
+        // println!("=====> invoking barrier for reflector.object");
+        // TODO: Validate if this is not doing redundant work.
+        self.object.pre_write_barrier();
+    }
 }
 
 impl<T> PartialEq for Reflector<T> {

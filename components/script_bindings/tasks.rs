@@ -25,6 +25,11 @@ macro_rules! task {
                 // all referenced values from within the closure are either borrowed
                 // or moved into fields in the struct (and therefore traced).
             }
+
+            fn pre_write_barrier(&self) {
+                // TODO: Validate if this is correct.
+                unsafe { $(self.$field.pre_write_barrier();)* }
+            }
         }
         impl<F> $crate::task::NonSendTaskOnce for $name<F>
         where
@@ -72,6 +77,10 @@ macro_rules! task {
                 // We cannot trace the actual task closure. This is safe because
                 // all referenced values from within the closure are either borrowed
                 // or moved into fields in the struct (and therefore traced).
+            }
+            fn pre_write_barrier(&self) {
+                // TODO: Validate if this is correct.
+                unsafe { $(self.$field.pre_write_barrier();)* }
             }
         }
         impl<F> $crate::tasks::NonSendTaskOnce for $name<F>

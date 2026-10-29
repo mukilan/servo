@@ -394,6 +394,8 @@ impl ModuleHandler {
 impl Callback for ModuleHandler {
     fn callback(&self, cx: &mut CurrentRealm, _v: HandleValue) {
         let task = self.task.borrow_mut().take().unwrap();
+        // '/html/semantics/scripting-1/the-script-element/module/dynamic-import/microtasks/basic.any.html'
+        task.pre_write_barrier();
         task.run_box(cx);
     }
 }
