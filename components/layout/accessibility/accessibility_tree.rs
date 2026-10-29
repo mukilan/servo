@@ -88,7 +88,7 @@ pub(super) struct AccessibilityUpdate<'update> {
     /// Sent with the initial [`accesskit::TreeUpdate`], and whenever the root node changes.
     /// This is a property of the update, rather than the tree, because it only needs to exist for
     /// updates where one of those two conditions is true.
-    accesskit_tree: Option<accesskit::Tree>,
+    accesskit_tree: Option<accesskit::TreeInfo>,
     /// Nodes that changed their relation to the tree within the current update.
     tree_changes: FxHashMap<NodeId, TreeChange>,
     /// Whether the tree's focused node has changed in this update.
@@ -217,7 +217,7 @@ impl AccessibilityTree {
             self.populate_pending_scroll_updates_from_scroll_tree(context);
         }
 
-        update.accesskit_tree = Some(accesskit::Tree::new(root_id));
+        update.accesskit_tree = Some(accesskit::TreeInfo::new(root_id));
 
         self.root_node = Some(root_node);
     }
