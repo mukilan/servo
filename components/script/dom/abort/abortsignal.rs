@@ -215,7 +215,12 @@ impl AbortSignal {
             self.run_abort_algorithm(cx, global, algo);
         }
         // Step 2. Empty signal’s abort algorithms.
-        self.abort_algorithms.borrow_mut().clear();
+        use crate::js::rust::Trace;
+        // '/streams/piping/abort.any.sharedworker.html'
+        let old_algos = std::mem::replace(&mut *self.abort_algorithms.borrow_mut(), Vec::new());
+        for algo in old_algos.into_iter() {
+            algo.pre_write_barrier();
+        }
 
         // Step 3. Fire an event named abort at signal.
         self.upcast::<EventTarget>().fire_event(cx, atom!("abort"));

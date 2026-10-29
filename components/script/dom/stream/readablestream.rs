@@ -226,6 +226,11 @@ impl Callback for PipeTo {
             let pending = p.is_pending();
             if !pending {
                 p.set_promise_is_handled(cx);
+                // Technically this should be needed but the verifier doesn't catch this
+                // when running
+                // '/streams/piping/abort.any.sharedworker.html'
+                // use crate::js::rust::Trace;
+                // p.pre_write_barrier();
             }
             pending
         });
