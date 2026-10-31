@@ -4,5 +4,5 @@
   "gfx_text_antialiasing_enabled": false,
   "dom_testutils_enabled": true,
   "accessibility_enabled": true,
-  "js_mem_gc_zeal_level": 4
+  "js_mem_gc_incremental_enabled": true
 }

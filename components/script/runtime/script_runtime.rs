@@ -1029,6 +1029,7 @@ unsafe extern "C" fn servo_build_id(build_id: *mut BuildIdCharVector) -> bool {
 }
 
 #[expect(unsafe_code)]
+#[cfg(feature = "debugmozjs")]
 unsafe fn set_gc_zeal_options(cx: *mut RawJSContext) {
     use js::jsapi::SetGCZeal;
 
@@ -1046,9 +1047,9 @@ unsafe fn set_gc_zeal_options(cx: *mut RawJSContext) {
     }
 }
 
-// #[expect(unsafe_code)]
-// #[cfg(not(feature = "debugmozjs"))]
-// unsafe fn set_gc_zeal_options(_: *mut RawJSContext) {}
+#[expect(unsafe_code)]
+#[cfg(not(feature = "debugmozjs"))]
+unsafe fn set_gc_zeal_options(_: *mut RawJSContext) {}
 
 thread_local!(static ALREADY_COMPUTED_OBJECTS: LazyCell<RefCell<HashSet<*const JSObject>>> = const {
     LazyCell::new(Default::default)

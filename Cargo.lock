@@ -5327,7 +5327,7 @@ dependencies = [
 [[package]]
 name = "mozjs"
 version = "0.26.7"
-source = "git+https://github.com/mukilan/mozjs?branch=barrier-patch#a809487b3c03ebc421c2e5dd61a65c8f746712bd"
+source = "git+https://github.com/mukilan/mozjs?branch=barrier-patch#0ac135fa356ff7fb657cbf0bb1e723f45a61ed9c"
 dependencies = [
  "bindgen",
  "cc",
@@ -5341,7 +5341,7 @@ dependencies = [
 [[package]]
 name = "mozjs_collator_glue"
 version = "153.3.0"
-source = "git+https://github.com/mukilan/mozjs?branch=barrier-patch#a809487b3c03ebc421c2e5dd61a65c8f746712bd"
+source = "git+https://github.com/mukilan/mozjs?branch=barrier-patch#0ac135fa356ff7fb657cbf0bb1e723f45a61ed9c"
 dependencies = [
  "arraystring",
  "arrayvec",
@@ -5355,7 +5355,7 @@ dependencies = [
 [[package]]
 name = "mozjs_icu_collator"
 version = "153.3.0"
-source = "git+https://github.com/mukilan/mozjs?branch=barrier-patch#a809487b3c03ebc421c2e5dd61a65c8f746712bd"
+source = "git+https://github.com/mukilan/mozjs?branch=barrier-patch#0ac135fa356ff7fb657cbf0bb1e723f45a61ed9c"
 dependencies = [
  "displaydoc",
  "icu_locale",
@@ -5375,12 +5375,12 @@ dependencies = [
 [[package]]
 name = "mozjs_icu_collator_data"
 version = "153.3.0"
-source = "git+https://github.com/mukilan/mozjs?branch=barrier-patch#a809487b3c03ebc421c2e5dd61a65c8f746712bd"
+source = "git+https://github.com/mukilan/mozjs?branch=barrier-patch#0ac135fa356ff7fb657cbf0bb1e723f45a61ed9c"
 
 [[package]]
 name = "mozjs_icu_collections"
 version = "153.3.0"
-source = "git+https://github.com/mukilan/mozjs?branch=barrier-patch#a809487b3c03ebc421c2e5dd61a65c8f746712bd"
+source = "git+https://github.com/mukilan/mozjs?branch=barrier-patch#0ac135fa356ff7fb657cbf0bb1e723f45a61ed9c"
 dependencies = [
  "displaydoc",
  "icu_casemap",
@@ -5394,7 +5394,7 @@ dependencies = [
 [[package]]
 name = "mozjs_icu_normalizer"
 version = "153.3.0"
-source = "git+https://github.com/mukilan/mozjs?branch=barrier-patch#a809487b3c03ebc421c2e5dd61a65c8f746712bd"
+source = "git+https://github.com/mukilan/mozjs?branch=barrier-patch#0ac135fa356ff7fb657cbf0bb1e723f45a61ed9c"
 dependencies = [
  "displaydoc",
  "icu_properties",
@@ -5411,12 +5411,12 @@ dependencies = [
 [[package]]
 name = "mozjs_icu_normalizer_data"
 version = "153.3.0"
-source = "git+https://github.com/mukilan/mozjs?branch=barrier-patch#a809487b3c03ebc421c2e5dd61a65c8f746712bd"
+source = "git+https://github.com/mukilan/mozjs?branch=barrier-patch#0ac135fa356ff7fb657cbf0bb1e723f45a61ed9c"
 
 [[package]]
 name = "mozjs_locale_glue"
 version = "153.3.0"
-source = "git+https://github.com/mukilan/mozjs?branch=barrier-patch#a809487b3c03ebc421c2e5dd61a65c8f746712bd"
+source = "git+https://github.com/mukilan/mozjs?branch=barrier-patch#0ac135fa356ff7fb657cbf0bb1e723f45a61ed9c"
 dependencies = [
  "cbindgen",
  "icu_locale",
@@ -5425,7 +5425,7 @@ dependencies = [
 [[package]]
 name = "mozjs_normalizer_glue"
 version = "153.3.0"
-source = "git+https://github.com/mukilan/mozjs?branch=barrier-patch#a809487b3c03ebc421c2e5dd61a65c8f746712bd"
+source = "git+https://github.com/mukilan/mozjs?branch=barrier-patch#0ac135fa356ff7fb657cbf0bb1e723f45a61ed9c"
 dependencies = [
  "cbindgen",
  "encoding_rs",
@@ -5437,7 +5437,7 @@ dependencies = [
 [[package]]
 name = "mozjs_properties_glue"
 version = "153.3.0"
-source = "git+https://github.com/mukilan/mozjs?branch=barrier-patch#a809487b3c03ebc421c2e5dd61a65c8f746712bd"
+source = "git+https://github.com/mukilan/mozjs?branch=barrier-patch#0ac135fa356ff7fb657cbf0bb1e723f45a61ed9c"
 dependencies = [
  "cbindgen",
  "icu_casemap",
@@ -5448,7 +5448,7 @@ dependencies = [
 [[package]]
 name = "mozjs_sys"
 version = "153.3.0-3"
-source = "git+https://github.com/mukilan/mozjs?branch=barrier-patch#a809487b3c03ebc421c2e5dd61a65c8f746712bd"
+source = "git+https://github.com/mukilan/mozjs?branch=barrier-patch#0ac135fa356ff7fb657cbf0bb1e723f45a61ed9c"
 dependencies = [
  "bindgen",
  "cc",
@@ -5470,7 +5470,7 @@ dependencies = [
 [[package]]
 name = "mozjs_unicode_bidi_ffi"
 version = "153.3.0"
-source = "git+https://github.com/mukilan/mozjs?branch=barrier-patch#a809487b3c03ebc421c2e5dd61a65c8f746712bd"
+source = "git+https://github.com/mukilan/mozjs?branch=barrier-patch#0ac135fa356ff7fb657cbf0bb1e723f45a61ed9c"
 dependencies = [
  "cbindgen",
  "icu_properties",
@@ -5480,7 +5480,7 @@ dependencies = [
 [[package]]
 name = "mozjs_utf16_iter"
 version = "153.3.0"
-source = "git+https://github.com/mukilan/mozjs?branch=barrier-patch#a809487b3c03ebc421c2e5dd61a65c8f746712bd"
+source = "git+https://github.com/mukilan/mozjs?branch=barrier-patch#0ac135fa356ff7fb657cbf0bb1e723f45a61ed9c"
 dependencies = [
  "mozjs_icu_collections",
 ]
@@ -5488,7 +5488,7 @@ dependencies = [
 [[package]]
 name = "mozjs_utf8_iter"
 version = "153.3.0"
-source = "git+https://github.com/mukilan/mozjs?branch=barrier-patch#a809487b3c03ebc421c2e5dd61a65c8f746712bd"
+source = "git+https://github.com/mukilan/mozjs?branch=barrier-patch#0ac135fa356ff7fb657cbf0bb1e723f45a61ed9c"
 dependencies = [
  "mozjs_icu_collections",
 ]
