@@ -203,6 +203,7 @@ impl HTMLScriptElement {
     }
 
     /// <https://html.spec.whatwg.org/multipage/#steps-to-run-when-the-result-is-ready>
+    #[cfg_attr(crown, expect(crown::unrooted_must_root))]
     fn finish_fetching_a_script(&self, cx: &mut JSContext, script_kind: ExternalScriptKind) {
         let load = self
             .result

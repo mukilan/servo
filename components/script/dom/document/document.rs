@@ -7444,6 +7444,7 @@ impl PendingScript {
         self.load = Some(result.map(Into::into));
     }
 
+    #[cfg_attr(crown, expect(crown::unrooted_must_root))]
     fn take_result(&mut self) -> Option<(DomRoot<HTMLScriptElement>, ScriptResult)> {
         let result = self.load
             .take();

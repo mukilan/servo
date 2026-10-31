@@ -209,6 +209,7 @@ impl AbortSignal {
     }
 
     /// <https://dom.spec.whatwg.org/#run-the-abort-steps>
+    #[cfg_attr(crown, expect(crown::unrooted_must_root))]
     fn run_the_abort_steps(&self, cx: &mut CurrentRealm, global: &GlobalScope) {
         // Step 1. For each algorithm of signal’s abort algorithms: run algorithm.
         for algo in self.abort_algorithms.borrow().iter() {
