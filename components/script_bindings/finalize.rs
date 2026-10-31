@@ -5,6 +5,7 @@
 //! Generic finalizer implementations for DOM binding implementations.
 
 use std::any::type_name;
+use std::cell::Cell;
 use std::ptr;
 use std::rc::Rc;
 
@@ -15,6 +16,28 @@ use crate::DomObject;
 use crate::codegen::PrototypeList::PROTO_OR_IFACE_LENGTH;
 use crate::utils::{ProtoOrIfaceArray, get_proto_or_iface_array};
 use crate::weakref::WeakReferenceable;
+
+thread_local! {
+    static FINALIZING: Cell<bool> = const { Cell::new(false) };
+}
+
+struct FinalizingGuard(bool);
+
+impl FinalizingGuard {
+    fn new() -> Self {
+        FinalizingGuard(FINALIZING.with(|flag| flag.replace(true)))
+    }
+}
+
+impl Drop for FinalizingGuard {
+    fn drop(&mut self) {
+        FINALIZING.with(|flag| flag.set(self.0));
+    }
+}
+
+pub(crate) fn is_finalizing() -> bool {
+    FINALIZING.with(|flag| flag.get())
+}
 
 /// Drop the resources held by reserved slots of a global object
 unsafe fn do_finalize_global(obj: *mut JSObject) {
@@ -35,6 +58,7 @@ unsafe fn do_finalize_global(obj: *mut JSObject) {
 pub(crate) unsafe fn finalize_common<T: DomObject>(this: *const T) {
     if !this.is_null() {
         // The pointer can be null if the object is the unforgeable holder of that interface.
+        let _guard = FinalizingGuard::new();
         let this = unsafe { Box::from_raw(this as *mut T) };
         this.reflector().drop_memory(&*this);
     }
@@ -46,6 +70,7 @@ pub(crate) unsafe fn finalize_common<T: DomObject>(this: *const T) {
 /// `this` must point to a valid, non-null instance of T.
 pub(crate) unsafe fn finalize_global<T: DomObject>(obj: *mut JSObject, this: *const T) {
     unsafe {
+        let _guard = FinalizingGuard::new();
         do_finalize_global(obj);
         finalize_common::<T>(this);
     }
@@ -56,6 +81,7 @@ pub(crate) unsafe fn finalize_global<T: DomObject>(obj: *mut JSObject, this: *co
 pub(crate) unsafe fn finalize_weak_referenceable<T: WeakReferenceable>(this: *const T) {
     if !this.is_null() {
         // The pointer can be null if the object is the unforgeable holder of that interface.
+        let _guard = FinalizingGuard::new();
         let this = unsafe { Rc::from_raw(this) };
         this.reflector().drop_memory(&*this);
     }

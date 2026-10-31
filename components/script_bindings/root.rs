@@ -18,6 +18,7 @@ use malloc_size_of::{MallocSizeOf, MallocSizeOfOps};
 use crate::assert::assert_in_script;
 use crate::conversions::DerivedFrom;
 use crate::dom::UnrootedDom;
+use crate::finalize::is_finalizing;
 use crate::inheritance::Castable;
 use crate::reflector::{DomObject, MutDomObject};
 use crate::trace::trace_reflector;
@@ -251,6 +252,9 @@ unsafe impl<T: DomObject> JSTraceable for Dom<T> {
     }
 
     fn pre_write_barrier(&self) {
+        if is_finalizing() {
+            return;
+        }
         // let type_name = std::any::type_name::<T>();
         // if type_name == "script::dom::workers::dedicatedworkerglobalscope::DedicatedWorkerGlobalScope" {
         //     println!("bt {}", std::backtrace::Backtrace::capture());
