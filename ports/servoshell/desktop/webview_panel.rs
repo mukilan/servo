@@ -24,7 +24,6 @@ pub(crate) struct WebViewPanel {
 
 impl WebViewPanel {
     pub fn new(
-        webview_id: WebViewId,
         webview: WebView,
         scale_factor: Scale<f32, DeviceIndependentPixel, DevicePixel>,
         available_rect: Rect,
@@ -33,7 +32,7 @@ impl WebViewPanel {
         tree_id_known: bool,
     ) -> Self {
         Self {
-            id: egui::Id::new(webview_id),
+            id: egui::Id::new(webview.id()),
             webview,
             scale_factor,
             available_rect,
@@ -85,22 +84,22 @@ impl Widget for WebViewPanel {
         }
 
         let response = ui.interact(self.available_rect, self.id, Sense::FOCUSABLE);
-        if self.contains_focus {
-            response.request_focus();
-        }
-
-        // Once the webview is focused, it doesn't allow focus to be moved with the keyboard to
-        // other parts of the UI, so that focus can move within the web contents.
-        // TODO: Release focus from the webview if keyboard focus moves past the beginning or end
-        // of the web contents.
-        let event_filter = EventFilter {
-            tab: true,
-            horizontal_arrows: true,
-            vertical_arrows: true,
-            escape: true,
-        };
-        ui.memory_mut(|mem| mem.set_focus_lock_filter(self.id, event_filter));
-
+        // if self.contains_focus {
+        //     response.request_focus();
+        // }
+        //
+        // // Once the webview is focused, it doesn't allow focus to be moved with the keyboard to
+        // // other parts of the UI, so that focus can move within the web contents.
+        // // TODO: Release focus from the webview if keyboard focus moves past the beginning or end
+        // // of the web contents.
+        // let event_filter = EventFilter {
+        //     tab: true,
+        //     horizontal_arrows: true,
+        //     vertical_arrows: true,
+        //     escape: true,
+        // };
+        // ui.memory_mut(|mem| mem.set_focus_lock_filter(self.id, event_filter));
+        //
         response
     }
 }
